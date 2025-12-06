@@ -350,5 +350,5 @@ Contributors will be acknowledged in:
 
 - Technical questions: Open a [Discussion](https://github.com/fiaos-org/FiaPhy/discussions)
 - Private inquiries: research@fiaos.org
-- Research paper: [link to published paper]
+- Research paper: [https://www.nekshadesilva.com/docs/Temporal-Derivative-Soft-Sensing-and-Reconstrcting-Solar-Radiation-and-Heat-Flux-from-Common-Environmental-Sensors-and-FiaOS-Engineering/assets/Temporal%20Derivative%20Soft-Sensing%20and%20Reconstructing%20Solar%20Radiation%20and%20Heat%20Flux%20from%20Common%20Environmental%20Sensors.pdf](https://www.nekshadesilva.com/docs/Temporal-Derivative-Soft-Sensing-and-Reconstrcting-Solar-Radiation-and-Heat-Flux-from-Common-Environmental-Sensors-and-FiaOS-Engineering/assets/Temporal%20Derivative%20Soft-Sensing%20and%20Reconstructing%20Solar%20Radiation%20and%20Heat%20Flux%20from%20Common%20Environmental%20Sensors.pdf)
 
