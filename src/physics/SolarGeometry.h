@@ -48,7 +48,7 @@ inline float julianDay(int year, int month, int day) {
  * @return Solar declination in degrees
  */
 inline float solarDeclination(int day_of_year) {
-    return 23.45f * sinf(Constants::DEG_TO_RAD * 360.0f * (284 + day_of_year) / 365.0f);
+    return 23.45f * sinf(Constants::FIAPHY_DEG_TO_RAD * 360.0f * (284 + day_of_year) / 365.0f);
 }
 
 /**
@@ -74,9 +74,9 @@ inline float hourAngle(float hour_of_day) {
  * @return Zenith angle in degrees
  */
 inline float zenithAngle(float latitude, float declination, float hour_angle_deg) {
-    float lat_rad = latitude * Constants::DEG_TO_RAD;
-    float dec_rad = declination * Constants::DEG_TO_RAD;
-    float ha_rad = hour_angle_deg * Constants::DEG_TO_RAD;
+    float lat_rad = latitude * Constants::FIAPHY_DEG_TO_RAD;
+    float dec_rad = declination * Constants::FIAPHY_DEG_TO_RAD;
+    float ha_rad = hour_angle_deg * Constants::FIAPHY_DEG_TO_RAD;
     
     float cos_zenith = sinf(lat_rad) * sinf(dec_rad) + 
                        cosf(lat_rad) * cosf(dec_rad) * cosf(ha_rad);
@@ -85,7 +85,7 @@ inline float zenithAngle(float latitude, float declination, float hour_angle_deg
     if (cos_zenith > 1.0f) cos_zenith = 1.0f;
     if (cos_zenith < -1.0f) cos_zenith = -1.0f;
     
-    return acosf(cos_zenith) * Constants::RAD_TO_DEG;
+    return acosf(cos_zenith) * Constants::FIAPHY_RAD_TO_DEG;
 }
 
 /**
@@ -108,7 +108,7 @@ inline float clearSkyGHI(float zenith_deg, float altitude_m = 0.0f) {
         return 0.0f;
     }
     
-    float zenith_rad = zenith_deg * Constants::DEG_TO_RAD;
+    float zenith_rad = zenith_deg * Constants::FIAPHY_DEG_TO_RAD;
     float cos_zenith = cosf(zenith_rad);
     
     // Air mass (relative path length through atmosphere)

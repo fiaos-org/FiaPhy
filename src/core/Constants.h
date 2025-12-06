@@ -194,10 +194,10 @@ constexpr float HC_FORCED_CONV = 25.0f;
 // Mathematical Constants
 // ============================================================================
 
-constexpr float PI = 3.14159265359f;
-constexpr float TWO_PI = 6.28318530718f;
-constexpr float DEG_TO_RAD = 0.01745329251f;
-constexpr float RAD_TO_DEG = 57.2957795131f;
+constexpr float FIAPHY_PI = 3.14159265359f;
+constexpr float FIAPHY_TWO_PI = 6.28318530718f;
+constexpr float FIAPHY_DEG_TO_RAD = 0.01745329251f;
+constexpr float FIAPHY_RAD_TO_DEG = 57.2957795131f;
 
 // ============================================================================
 // Fixed-Point Scaling (for 8-bit MCU optimization)

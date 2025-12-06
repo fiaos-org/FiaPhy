@@ -14,20 +14,6 @@ https://www.fiaos.org/open-source
 
 namespace FiaPhy {
 
-// Physical constants (in fixed-point where appropriate)
-namespace Constants {
-    constexpr float R_DRY_AIR = 287.058f;      // J/(kg·K) - Specific gas constant for dry air
-    constexpr float R_WATER_VAPOR = 461.495f;  // J/(kg·K) - Specific gas constant for water vapor
-    constexpr float EPSILON = 0.622f;          // Ratio Rd/Rv
-    constexpr float STEFAN_BOLTZMANN = 5.67e-8f; // W/(m²·K⁴)
-    constexpr float ZERO_CELSIUS = 273.15f;    // Kelvin offset
-    
-    // Magnus formula constants (Alduchov & Eskridge 1996)
-    constexpr float MAGNUS_A = 17.67f;
-    constexpr float MAGNUS_B = 243.5f;         // °C
-    constexpr float MAGNUS_C = 6.112f;         // hPa
-}
-
 // Sensor reading structure - raw input from hardware
 struct SensorReading {
     float temperature_C;    // Temperature in Celsius
@@ -74,14 +60,27 @@ struct AtmosphericState {
 
 // Solar flux computation result
 struct SolarFlux {
+    // Radiation components
     float irradiance_Wm2;          // Global Horizontal Irradiance (GHI)
     float heat_flux_Wm2;           // Convective heat flux
     float sol_air_excess_C;        // T_sol (excess temperature)
     float cloud_fraction;          // Estimated cloud cover (0-1)
     float confidence;              // Result confidence (0-1)
     
+    // Solar geometry parameters
+    int day_of_year;               // Day number (1-365)
+    float hour_angle_deg;          // Hour angle in degrees
+    float zenith_angle_deg;        // Solar zenith angle in degrees
+    float elevation_angle_deg;     // Solar elevation angle in degrees
+    float azimuth_angle_deg;       // Solar azimuth angle in degrees
+    bool sun_is_up;                // True if sun elevation > 0
+    float clear_sky_ghi_Wm2;       // Clear-sky GHI estimate
+    
     SolarFlux() : irradiance_Wm2(0), heat_flux_Wm2(0), 
-                  sol_air_excess_C(0), cloud_fraction(0), confidence(0) {}
+                  sol_air_excess_C(0), cloud_fraction(0), confidence(0),
+                  day_of_year(0), hour_angle_deg(0), zenith_angle_deg(0),
+                  elevation_angle_deg(0), azimuth_angle_deg(0), sun_is_up(false),
+                  clear_sky_ghi_Wm2(0) {}
 };
 
 // INR filter state (Inertial Noise Reduction)
@@ -133,13 +132,14 @@ enum class ErrorCode : uint8_t {
 
 // Validation result structure
 struct ValidationResult {
-    ErrorCode code;
+    bool valid;                 // Overall validation status
+    ErrorCode error_code;       // Specific error if !valid
     const char* message;
     uint8_t faulty_sensor_id;
     
-    ValidationResult() : code(ErrorCode::OK), message(""), faulty_sensor_id(0) {}
+    ValidationResult() : valid(true), error_code(ErrorCode::OK), message(""), faulty_sensor_id(0) {}
     
-    bool isOk() const { return code == ErrorCode::OK; }
+    bool isOk() const { return valid && error_code == ErrorCode::OK; }
 };
 
 // Sensor type enumeration
@@ -148,8 +148,8 @@ enum class SensorType : uint8_t {
     FLUX = 1        // Black-body, absorptive sensor
 };
 
-// Extended sensor frame with completion tracking
-struct SensorFrame {
+// Extended sensor frame with completion tracking (v1.0.1+)
+struct SensorFrameEx {
     float temperature_C;
     float humidity_RH;
     float pressure_hPa;

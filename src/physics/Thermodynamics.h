@@ -57,7 +57,7 @@ inline float airDensity(float pressure_hPa, float temp_C, float humidity_RH) {
     
     // Convert pressure to Pascals (1 hPa = 100 Pa)
     float pressure_Pa = pressure_hPa * 100.0f;
-    float vapor_pressure_Pa = vapor_pressure * 100.0f;
+    float vapor_pressure_Pa = vapor_pressure_hPa * 100.0f;
     
     // Dry air component: ρ_d = P_d / (R_d * T)
     float dry_density = (pressure_Pa - vapor_pressure_Pa) / 

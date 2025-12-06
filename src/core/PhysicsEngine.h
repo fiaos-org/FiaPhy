@@ -180,10 +180,10 @@ public:
      * @param inr_flux INR filter for flux sensor
      * @return RadiationResult with GHI, heat flux, and diagnostics
      */
-    SolarFlux compute(const SensorFrame& ref_frame, 
-                      INRFilter& inr_ref, 
-                      INRFilter& inr_flux) {
-        SolarFlux result;
+    RadiationResult compute(const SensorFrame& ref_frame, 
+                           INRFilter& inr_ref, 
+                           INRFilter& inr_flux) {
+        RadiationResult result;
         
         // Step 1: Calculate atmospheric state (altitude-adaptive)
         AtmosphericState atmos = Thermodynamics::calculateAtmosphericState(
@@ -203,8 +203,9 @@ public:
         // Step 4: REFERENCE PATH (baseline from humidity/cloud proxy)
         BaselineResult baseline = computeReferencePath(ref_frame, clear_sky_ghi);
         
-        result.irradiance_Wm2 = baseline.ghi_Wm2;
-        result.cloud_fraction = baseline.cloud_fraction;
+        result.valid = true;
+        result.ghi_Wm2 = baseline.ghi_Wm2;
+        result.cloud_proxy = baseline.cloud_fraction;
         
         // Step 5: REACTIVE PATH (differential temperature analysis)
         // Note: Currently disabled because we need proper flux sensor data structure

@@ -253,7 +253,7 @@ public:
         }
         
         if (!hub.isFrameReady()) {
-            Logger::warning("Frame not ready. Check sensor data completeness.");
+            Logger::warn("Frame not ready. Check sensor data completeness.");
             return RadiationResult::invalid();
         }
         

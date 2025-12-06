@@ -69,7 +69,7 @@ private:
         float delta = new_val > prev_val ? (new_val - prev_val) : (prev_val - new_val);
         
         if (delta > max_jump) {
-            Logger::warning("Unrealistic jump detected on sensor");
+            Logger::warn("Unrealistic jump detected on sensor");
             return true;
         }
         
@@ -264,7 +264,7 @@ public:
      */
     SensorFrame getFrame() {
         if (!frame_ready) {
-            Logger::warning("getFrame() called before frame ready");
+            Logger::warn("getFrame() called before frame ready");
         }
         
         SensorFrame result;

@@ -22,7 +22,7 @@ Adafruit_BME280 bme_ref;  // 0x76
 Adafruit_BME280 bme_flux; // 0x77
 
 // FiaPhy system
-FiaPhy::DTDSS system;
+FiaPhy::DTDSS dtdss;
 
 // Location configuration
 const float LATITUDE = 6.9271f;
@@ -71,7 +71,7 @@ void setup() {
     Serial.println("Sensor sampling configured");
     
     // Configure FiaPhy
-    if (system.configure(LATITUDE, LONGITUDE, ALTITUDE_M)) {
+    if (dtdss.configure(LATITUDE, LONGITUDE, ALTITUDE_M)) {
         Serial.println("FiaPhy system configured");
         Serial.print("Location: ");
         Serial.print(LATITUDE, 4);
@@ -137,19 +137,19 @@ void loop() {
         Serial.println();
         
         // Feed data to system
-        system.feedReferenceTemperature(ref_temp, 0);
-        system.feedReferenceHumidity(ref_humidity, 0);
-        system.feedReferencePressure(ref_pressure, 0);
+        dtdss.feedReferenceTemperature(ref_temp, 0);
+        dtdss.feedReferenceHumidity(ref_humidity, 0);
+        dtdss.feedReferencePressure(ref_pressure, 0);
         
-        system.feedFluxTemperature(flux_temp, 0);
-        system.feedFluxHumidity(flux_humidity, 0);
-        system.feedFluxPressure(flux_pressure, 0);
+        dtdss.feedFluxTemperature(flux_temp, 0);
+        dtdss.feedFluxHumidity(flux_humidity, 0);
+        dtdss.feedFluxPressure(flux_pressure, 0);
         
         // Compute radiation
-        if (system.isFrameReady()) {
+        if (dtdss.isFrameReady()) {
             Serial.println("--- Solar Radiation ---");
             
-            FiaPhy::RadiationResult result = system.compute();
+            FiaPhy::RadiationResult result = dtdss.compute();
             
             if (result.valid) {
                 Serial.print("GHI: ");

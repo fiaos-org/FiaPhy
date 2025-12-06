@@ -23,7 +23,7 @@ const uint8_t ref_addresses[8] = {0x76, 0x77, 0x76, 0x77, 0x76, 0x77, 0x76, 0x77
 const uint8_t flux_addresses[8] = {0x76, 0x77, 0x76, 0x77, 0x76, 0x77, 0x76, 0x77};
 
 // FiaPhy system
-FiaPhy::DTDSS system;
+FiaPhy::DTDSS dtdss;
 
 // Statistics
 struct Stats {
@@ -63,7 +63,7 @@ void setup() {
     }
     
     // Configure FiaPhy
-    system.configure(6.9271, 79.8612, 5.0);
+    dtdss.configure(6.9271, 79.8612, 5.0);
     
     // Optional: Auto-calibrate thermal time constant
     Serial.println();
@@ -93,7 +93,7 @@ void loop() {
         }
         
         // Process frame if ready
-        if (system.isFrameReady()) {
+        if (dtdss.isFrameReady()) {
             processFrame();
         }
         
@@ -154,17 +154,17 @@ void readAndFeedSensorPair(uint8_t pair_id) {
     float flux_pres = flux_sensors[pair_id].readPressure() / 100.0f;
     
     // Feed to FiaPhy (asynchronously)
-    system.feedReferenceTemperature(ref_temp, pair_id);
-    system.feedReferenceHumidity(ref_hum, pair_id);
-    system.feedReferencePressure(ref_pres, pair_id);
+    dtdss.feedReferenceTemperature(ref_temp, pair_id);
+    dtdss.feedReferenceHumidity(ref_hum, pair_id);
+    dtdss.feedReferencePressure(ref_pres, pair_id);
     
-    system.feedFluxTemperature(flux_temp, pair_id);
-    system.feedFluxHumidity(flux_hum, pair_id);
-    system.feedFluxPressure(flux_pres, pair_id);
+    dtdss.feedFluxTemperature(flux_temp, pair_id);
+    dtdss.feedFluxHumidity(flux_hum, pair_id);
+    dtdss.feedFluxPressure(flux_pres, pair_id);
 }
 
 void processFrame() {
-    FiaPhy::RadiationResult result = system.compute();
+    FiaPhy::RadiationResult result = dtdss.compute();
     
     if (result.valid) {
         stats.valid_frames++;
