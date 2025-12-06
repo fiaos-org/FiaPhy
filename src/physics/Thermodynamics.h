@@ -11,7 +11,7 @@
 #ifndef FIAPHY_THERMODYNAMICS_H
 #define FIAPHY_THERMODYNAMICS_H
 
-#include "Types.h"
+#include "../core/Types.h"
 #include <math.h>
 
 namespace FiaPhy {

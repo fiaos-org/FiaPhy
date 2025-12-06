@@ -1,0 +1,56 @@
+{
+  "scopeName": "source.cpp.fiaphy",
+  "patterns": [
+    {
+      "include": "#fiaphy-namespace"
+    },
+    {
+      "include": "#fiaphy-classes"
+    },
+    {
+      "include": "#fiaphy-functions"
+    }
+  ],
+  "repository": {
+    "fiaphy-namespace": {
+      "patterns": [
+        {
+          "match": "\\b(FiaPhy)\\b",
+          "name": "entity.name.namespace.fiaphy"
+        }
+      ]
+    },
+    "fiaphy-classes": {
+      "patterns": [
+        {
+          "match": "\\b(DTDSS|INRFilter|SensorHub|PhysicsEngine)\\b",
+          "name": "entity.name.class.fiaphy"
+        },
+        {
+          "match": "\\b(SensorFrame|RadiationResult|AtmosphericState|CalibrationParams|ValidationResult)\\b",
+          "name": "entity.name.type.fiaphy"
+        }
+      ]
+    },
+    "fiaphy-functions": {
+      "patterns": [
+        {
+          "match": "\\b(configure|feedReferenceData|feedFluxData|isFrameReady|compute)\\b",
+          "name": "entity.name.function.fiaphy.main"
+        },
+        {
+          "match": "\\b(saturationVaporPressure|vaporPressure|airDensity|mixingRatio|specificEnthalpy|convectiveHeatTransferCoefficient|calculateAtmosphericState)\\b",
+          "name": "entity.name.function.fiaphy.thermodynamics"
+        },
+        {
+          "match": "\\b(calculateSaturationPressure|calculateVaporPressure|calculateAirDensity|calculateMixingRatio|calculateSpecificEnthalpy|estimateConvectiveCoefficient)\\b",
+          "name": "invalid.deprecated.fiaphy"
+        },
+        {
+          "match": "\\b(clearSkyGHI|zenithAngle|solarDeclination)\\b",
+          "name": "entity.name.function.fiaphy.solar"
+        }
+      ]
+    }
+  }
+}
