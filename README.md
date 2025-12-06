@@ -1,4 +1,4 @@
-Copyright (c) www.FiaOS.org and www.nekshadesilva.com. All Rights Reserved.
+Copyrights (c) www.FiaOS.org and www.nekshadesilva.com. All Rights Reserved.
 
 <img src="http://fiaos.org/assets/media/fiaphy-clean.png" >
 
