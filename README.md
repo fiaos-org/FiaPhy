@@ -125,11 +125,7 @@ void loop() {
 
 ## Research
 
-Based on research by Neksha V. DeSilva  
+Based on research by Neksha DeSilva  
 FiaOS.org (research@fiaos.org)
 
 
-## License
-
-This work is protected under proprietary license.  
-Copyright (c) 2025 FiaOS.org and Neksha V. DeSilva. All Rights Reserved.
