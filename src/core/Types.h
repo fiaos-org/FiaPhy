@@ -37,14 +37,27 @@ struct SensorFrame {
     uint8_t sensor_id;
     bool complete;          // True when all three values synchronized
     
+    // Completion flags (v1.0.2+)
+    bool has_temperature;
+    bool has_humidity;
+    bool has_pressure;
+    
     SensorFrame() : temperature_C(0), humidity_RH(0), pressure_hPa(0), 
-                    sensor_id(0), complete(false) {}
+                    sensor_id(0), complete(false), has_temperature(false),
+                    has_humidity(false), has_pressure(false) {}
     
     void reset() {
         temperature_C = 0;
         humidity_RH = 0;
         pressure_hPa = 0;
         complete = false;
+        has_temperature = false;
+        has_humidity = false;
+        has_pressure = false;
+    }
+    
+    void checkCompletion() {
+        complete = has_temperature && has_humidity && has_pressure;
     }
 };
 
@@ -148,38 +161,6 @@ enum class SensorType : uint8_t {
     FLUX = 1        // Black-body, absorptive sensor
 };
 
-// Extended sensor frame with completion tracking (v1.0.1+)
-struct SensorFrameEx {
-    float temperature_C;
-    float humidity_RH;
-    float pressure_hPa;
-    uint8_t sensor_id;
-    
-    // Completion flags
-    bool has_temperature;
-    bool has_humidity;
-    bool has_pressure;
-    bool complete;
-    
-    SensorFrame() : temperature_C(0), humidity_RH(0), pressure_hPa(0), 
-                    sensor_id(0), has_temperature(false), has_humidity(false),
-                    has_pressure(false), complete(false) {}
-    
-    void reset() {
-        temperature_C = 0;
-        humidity_RH = 0;
-        pressure_hPa = 0;
-        has_temperature = false;
-        has_humidity = false;
-        has_pressure = false;
-        complete = false;
-    }
-    
-    void checkCompletion() {
-        complete = has_temperature && has_humidity && has_pressure;
-    }
-};
-
 // Radiation computation result
 struct RadiationResult {
     bool valid;
@@ -192,12 +173,13 @@ struct RadiationResult {
     float cloud_proxy;          // Cloud fraction estimate
     float air_density_kg_m3;    // Calculated air density
     float vapor_pressure_hPa;   // Vapor pressure
+    float confidence;           // Result confidence (0-1)
     uint32_t timestamp_ms;
     
     RadiationResult() : valid(false), ghi_Wm2(0), heat_flux_Wm2(0),
                         temp_differential_C(0), temp_derivative_C_s(0), sol_air_excess_C(0),
                         baseline_ghi_Wm2(0), cloud_proxy(0), air_density_kg_m3(0),
-                        vapor_pressure_hPa(0), timestamp_ms(0) {}
+                        vapor_pressure_hPa(0), confidence(0.0f), timestamp_ms(0) {}
     
     static RadiationResult invalid() {
         RadiationResult r;

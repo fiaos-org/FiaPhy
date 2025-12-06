@@ -115,7 +115,7 @@ private:
     /**
      * @brief Count set bits in byte
      */
-    uint8_t countBits(uint8_t value) {
+    uint8_t countBits(uint8_t value) const {
         uint8_t count = 0;
         while (value) {
             count += value & 1;
@@ -290,7 +290,8 @@ public:
         
         if (ref_temp_count != ref_humidity_count || 
             ref_humidity_count != ref_pressure_count) {
-            result.code = ErrorCode::SENSOR_ASYMMETRY;
+            result.valid = false;
+            result.error_code = ErrorCode::SENSOR_ASYMMETRY;
             result.message = "Reference sensor counts asymmetric (T != H != P)";
             Logger::error(result.message);
             return result;
@@ -298,7 +299,8 @@ public:
         
         if (flux_temp_count != flux_humidity_count || 
             flux_humidity_count != flux_pressure_count) {
-            result.code = ErrorCode::SENSOR_ASYMMETRY;
+            result.valid = false;
+            result.error_code = ErrorCode::SENSOR_ASYMMETRY;
             result.message = "Flux sensor counts asymmetric (T != H != P)";
             Logger::error(result.message);
             return result;
@@ -308,20 +310,23 @@ public:
         uint8_t flux_count = countBits(flux_sensor_mask);
         
         if (ref_count < Constants::MIN_SENSOR_PAIRS || flux_count < Constants::MIN_SENSOR_PAIRS) {
-            result.code = ErrorCode::INSUFFICIENT_SENSORS;
+            result.valid = false;
+            result.error_code = ErrorCode::INSUFFICIENT_SENSORS;
             result.message = "Minimum sensor pair count not met";
             Logger::error(result.message);
             return result;
         }
         
         if (!isValidRange(frame.temperature_C, frame.humidity_RH, frame.pressure_hPa)) {
-            result.code = ErrorCode::VALUE_OUT_OF_RANGE;
+            result.valid = false;
+            result.error_code = ErrorCode::VALUE_OUT_OF_RANGE;
             result.message = "Sensor value outside valid range";
             Logger::error(result.message);
             return result;
         }
         
-        result.code = ErrorCode::OK;
+        result.valid = true;
+        result.error_code = ErrorCode::OK;
         result.message = "Validation passed";
         return result;
     }
