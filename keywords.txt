@@ -1,0 +1,87 @@
+#######################################
+# FiaPhy Syntax Highlighting
+#######################################
+
+#######################################
+# Datatypes (KEYWORD1)
+#######################################
+
+FiaPhy	KEYWORD1
+SensorHub	KEYWORD1
+PhysicsEngine	KEYWORD1
+INRFilter	KEYWORD1
+Logger	KEYWORD1
+SensorReading	KEYWORD1
+SensorFrame	KEYWORD1
+AtmosphericState	KEYWORD1
+SolarFlux	KEYWORD1
+CalibrationParams	KEYWORD1
+ValidationResult	KEYWORD1
+ErrorCode	KEYWORD1
+LogLevel	KEYWORD1
+
+#######################################
+# Methods and Functions (KEYWORD2)
+#######################################
+
+begin	KEYWORD2
+feedTemperature	KEYWORD2
+feedHumidity	KEYWORD2
+feedPressure	KEYWORD2
+isFrameReady	KEYWORD2
+getFrames	KEYWORD2
+getSensorCount	KEYWORD2
+getFrameCounter	KEYWORD2
+acknowledgeFrame	KEYWORD2
+getStatus	KEYWORD2
+reset	KEYWORD2
+compute	KEYWORD2
+setCalibration	KEYWORD2
+update	KEYWORD2
+computeProjection	KEYWORD2
+getFiltered	KEYWORD2
+getDerivative	KEYWORD2
+getProjected	KEYWORD2
+getAlpha	KEYWORD2
+initialize	KEYWORD2
+info	KEYWORD2
+debug	KEYWORD2
+warn	KEYWORD2
+error	KEYWORD2
+setLevel	KEYWORD2
+isValid	KEYWORD2
+isOk	KEYWORD2
+saturationVaporPressure	KEYWORD2
+vaporPressure	KEYWORD2
+airDensity	KEYWORD2
+mixingRatio	KEYWORD2
+specificEnthalpy	KEYWORD2
+calculateAtmosphericState	KEYWORD2
+convectiveHeatTransferCoefficient	KEYWORD2
+
+#######################################
+# Constants (LITERAL1)
+#######################################
+
+R_DRY_AIR	LITERAL1
+R_WATER_VAPOR	LITERAL1
+EPSILON	LITERAL1
+STEFAN_BOLTZMANN	LITERAL1
+ZERO_CELSIUS	LITERAL1
+MAGNUS_A	LITERAL1
+MAGNUS_B	LITERAL1
+MAGNUS_C	LITERAL1
+OK	LITERAL1
+SENSOR_ASYMMETRY	LITERAL1
+INCOMPLETE_TRIPLET	LITERAL1
+VALUE_OUT_OF_RANGE	LITERAL1
+UNREALISTIC_JUMP	LITERAL1
+INSUFFICIENT_SENSORS	LITERAL1
+BUFFER_OVERFLOW	LITERAL1
+CALIBRATION_FAILED	LITERAL1
+INVALID_STATE	LITERAL1
+DEBUG	LITERAL1
+INFO	LITERAL1
+WARN	LITERAL1
+ERROR	LITERAL1
+NONE	LITERAL1

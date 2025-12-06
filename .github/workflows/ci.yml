@@ -1,0 +1,133 @@
+name: FiaPhy CI/CD
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  release:
+    types: [ published ]
+
+jobs:
+  build-arduino:
+    name: Arduino Compilation Test
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        board:
+          - arduino:avr:uno
+          - arduino:avr:mega
+          - esp32:esp32:esp32
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Setup Arduino CLI
+        uses: arduino/setup-arduino-cli@v1
+        
+      - name: Install platforms
+        run: |
+          arduino-cli core update-index
+          arduino-cli core install arduino:avr
+          arduino-cli core install esp32:esp32 --additional-urls https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json
+          
+      - name: Install dependencies
+        run: |
+          arduino-cli lib install "Adafruit BME280 Library"
+          
+      - name: Compile examples
+        run: |
+          arduino-cli compile --fqbn ${{ matrix.board }} examples/Arduino_BME280
+
+  build-platformio:
+    name: PlatformIO Build Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+          
+      - name: Install PlatformIO
+        run: |
+          pip install platformio
+          
+      - name: Build ESP32 example
+        run: |
+          cd examples/PlatformIO_ESP32
+          platformio run
+
+  build-cmake:
+    name: CMake Build Test
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        build_type: [Release, Debug]
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Configure CMake
+        run: cmake -B build -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -DBUILD_EXAMPLES=ON
+        
+      - name: Build
+        run: cmake --build build --config ${{ matrix.build_type }}
+
+  syntax-check:
+    name: Code Quality Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Install cppcheck
+        run: sudo apt-get install -y cppcheck
+        
+      - name: Run cppcheck
+        run: |
+          cppcheck --enable=warning,style,performance \
+                   --suppress=missingIncludeSystem \
+                   --inline-suppr \
+                   --error-exitcode=1 \
+                   src/
+
+  documentation:
+    name: Documentation Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Check markdown links
+        uses: gaurav-nelson/github-action-markdown-link-check@v1
+        with:
+          use-quiet-mode: 'yes'
+          
+      - name: Verify API documentation
+        run: |
+          test -f docs/API.md
+          test -f docs/HARDWARE.md
+          test -f docs/GETTING_STARTED.md
+
+  release:
+    name: Create Release Archive
+    runs-on: ubuntu-latest
+    needs: [build-arduino, build-platformio, build-cmake]
+    if: github.event_name == 'release'
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Create Arduino Library ZIP
+        run: |
+          mkdir -p FiaPhy
+          cp -r src examples docs keywords.txt library.properties LICENSE README.md FiaPhy/
+          zip -r FiaPhy-${{ github.event.release.tag_name }}.zip FiaPhy
+          
+      - name: Upload Release Asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: ./FiaPhy-${{ github.event.release.tag_name }}.zip
+          asset_name: FiaPhy-${{ github.event.release.tag_name }}.zip
+          asset_content_type: application/zip
