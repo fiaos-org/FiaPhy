@@ -24,7 +24,7 @@ bibliography: paper.bib
 
 **FiaPhy** is a C++ library designed for embedded systems (Arduino, ESP32, Raspberry Pi) that reconstructs Global Horizontal Irradiance (GHI) and convective heat flux using standard environmental sensors. 
 
-Current environmental monitoring relies on static state variables—temperature, pressure, and humidity—while remaining blind to the dynamic energy exchanges that drive them. FiaPhy implements the Differential Temporal Derivative Soft-Sensing (DTDSS) framework, employing a differential topology with Inertial Noise Reduction (INR) to mathematically reconstruct solar radiation without the cost or fragility of thermopile pyranometers. The library transforms commodity hardware (specifically dual BME280 configurations [@Bosch:2016]) into capability-dense radiometers suitable for mass IoT deployment.
+Current environmental monitoring relies on static state variables—temperature, pressure, and humidity—while remaining blind to the dynamic energy exchanges that drive them. FiaPhy implements the Differential Temporal Derivative Soft-Sensing (DTDSS) framework, employing a differential topology with Inertial Noise Reduction (INR) to mathematically reconstruct solar radiation without the cost or fragility of thermopile pyranometers.The library transforms commodity hardware (specifically dual BME280 configurations [@Bosch:2016]) into capability-dense radiometers suitable for mass IoT deployment. While currently specialized for solar flux, the underlying DTDSS framework establishes a generalized methodology for deriving complex energy flux parameters from standard state variables, paving the way for a new class of virtual sensors on constrained embedded architectures.
 
 # Statement of need
 
