@@ -1,640 +1,1088 @@
-# FiaPhy: Differential Temporal Derivative Soft-Sensing for Solar Radiation Reconstruction
+# Temporal Derivative Soft-Sensing and Reconstructing Solar Radiation and Heat Flux from Common Environmental Sensors
 
-## Abstract
+**Neksha V. DeSilva***  
+*Independent researcher*  
+FiaOS.org**
 
-We present FiaPhy, a novel software library that transforms commodity environmental sensors into virtual radiometers through physics-based differential soft-sensing. Unlike traditional methods requiring expensive pyranometers, FiaPhy reconstructs Global Horizontal Irradiance (GHI) by inverting Newton's Law of Cooling using synchronized temperature differentials from paired sensors. The system employs a dual-pipeline architecture: a Reference Path using humidity-cloud proxy models for baseline stability, and a Reactive Path exploiting thermal lag compensation via Inertial Noise Reduction (INR) filtering. Validation against calibrated pyranometer data demonstrates mean absolute errors under 8% across diverse meteorological conditions, with sub-second temporal resolution enabling transient cloud detection impossible with conventional irradiance sensors. FiaPhy supports embedded deployments on Arduino, Raspberry Pi, and ESP32 platforms, with altitude-adaptive thermodynamic corrections and hardware-agnostic sensor interfaces. The library fills a critical gap in low-cost renewable energy monitoring, agricultural microclimate analysis, and IoT-based solar forecasting applications where traditional radiometry is economically or logistically prohibitive.
+(Dated: November 25th, 2025)
 
-## 1. Introduction
+Current environmental monitoring is fundamentally limited by a reliance on static state variables temperature, pressure, and humidity while remaining blind to the dynamic energy exchanges that drive them. This paper introduces Differential Temporal Derivative, Soft-Sensing DTDSS, a novel physics-based framework that transforms standard, low-cost environmental sensors into capability-dense radiometers.
 
-Solar radiation measurement underpins photovoltaic system optimization, agricultural yield modeling, and climate research, yet remains inaccessible to resource-constrained deployments due to pyranometer costs exceeding $2000 USD for research-grade instruments. While commodity temperature and humidity sensors cost under $5, their indirect relationship to solar flux has historically precluded quantitative radiometry. We demonstrate that carefully engineered sensor fusion, combined with first-principles thermodynamic modeling, enables accurate GHI reconstruction from ubiquitous environmental sensors.
+By employing a differential topology with Inertial Noise Reduction (INR), we can mathematically reconstruct Global Horizontal Irradiance (GHI) and convective heat flux without the cost or fragility of thermopile pyranometers.
 
-The core innovation lies in differential sensing: rather than attempting to measure absolute solar heating (confounded by ambient temperature drift, sensor self-heating, and convective variability), FiaPhy compares a radiation-absorptive "flux sensor" against a radiation-shielded "reference sensor." This cancellation of common-mode thermal noise isolates the radiative component, analogous to lock-in amplification in optical systems. The differential signal feeds a physics-based inversion model incorporating altitude-dependent air density corrections, latent heat compensation, and adaptive thermal lag filtering.
+While validated using the FiaOS reference architecture, this methodology is hardware-agnostic. The ultimate vision of this work is the deployment of a high-performance, open-source computational library designed for professional embedded development environments. By distributing this algorithm via global repositories, aiming to upgrade the capabilities of millions of existing and future IoT devices. This library allows standard electronics to move beyond simple linear measurements and unlock higher-order environmental physics. By deriving complex energy flux parameters from common sensors, we open a new frontier of derived equations and applications from precision engineering to autonomous energy management essentially democratizing advanced meteorological physics for the global engineering community.
 
-FiaPhy addresses three fundamental challenges in soft-sensing radiometry:
-
-**Temporal Resolution vs. Stability Trade-off:** Traditional cloud proxy models using humidity-to-irradiance regressions exhibit sluggish response times (minutes to hours) due to atmospheric mixing timescales. FiaPhy's differential method responds to transient irradiance changes within seconds by directly sensing surface heating rates, while maintaining long-term stability through fusion with the humidity-based Reference Path.
-
-**Sensor Thermal Inertia:** Temperature sensors possess finite thermal time constants (typically 10-60 seconds in still air), causing measured values to lag true surface temperatures during rapid irradiance transients (e.g., passing cumulus clouds). The INR filter compensates for this lag by projecting instantaneous temperatures from filtered derivatives, recovering high-frequency irradiance components otherwise lost to sensor bandwidth limitations.
-
-**Altitude and Atmospheric Variability:** Standard radiation models assume sea-level air density, introducing systematic errors exceeding 20% at elevations above 2000m. FiaPhy calculates moist air density from barometric pressure measurements, enabling deployment from coastal to alpine environments without site-specific recalibration. Similarly, vapor pressure corrections account for latent heat effects in humid climates where water vapor absorption modulates effective sky temperatures.
-
-The software architecture prioritizes embedded deployability through header-only C++11 implementation with zero dynamic allocations, enabling execution on memory-constrained microcontrollers (tested down to 32KB RAM). Thermodynamic calculations employ IEEE 754 floating-point arithmetic optimized for 32-bit ARM cores with hardware FPUs, though a fixed-point variant for legacy 8-bit platforms is mathematically straightforward. The modular design separates physics engines from hardware abstraction layers, supporting diverse sensor ecosystems including I2C/SPI environmental monitors (BME280, DHT22), analog thermocouples, and SPI barometers.
-
-Beyond academic validation, FiaPhy enables practical applications previously unattainable with conventional radiometry:
-
-- **Dense Spatial Networks:** Agricultural IoT deployments require irradiance data at sub-field resolution (< 10m spacing) to optimize variable-rate irrigation and solar panel siting. FiaPhy's $5/node cost enables 100× denser networks than pyranometer-based systems.
-
-- **Retrofit Integration:** Existing weather stations equipped with temperature/humidity sensors can be upgraded to irradiance monitoring through firmware updates, preserving capital investment while expanding measurement capabilities.
-
-- **Harsh Environment Operation:** Unlike pyranometers requiring glass domes vulnerable to dust accumulation, hail damage, and UV degradation, FiaPhy sensors tolerate extreme conditions with simple enclosures and mechanical robustness.
-
-This paper proceeds as follows: Section 2 establishes the thermodynamic foundation for differential sensing, deriving air density and convective heat transfer formulations. Section 3 details the dual-pipeline algorithm architecture, including Magnus formula implementation and INR filter design. Section 4 presents validation methodology and performance benchmarks. Section 5 surveys related work in soft-sensing and pyranometer alternatives. Section 6 addresses limitations and future research directions. Section 7 documents software architecture and deployment considerations.
-
-## 2. Thermodynamic Foundation
-
-Solar radiation incident on a surface elevates its temperature above ambient through radiative absorption, with the equilibrium temperature determined by a balance between radiative gains and convective/conductive losses. FiaPhy exploits this thermal signature by measuring the temperature differential between a radiation-absorptive "flux sensor" and a radiation-shielded "reference sensor," then inverting Newton's Law of Cooling to recover incident irradiance. This section derives the requisite thermodynamic relationships governing moist air properties and heat transfer coefficients.
-
-### 2.1 Moist Air Density
-
-Air density directly influences convective heat transfer rates, yet standard atmospheric models assuming dry air at sea level introduce systematic errors exceeding 15% in humid or high-altitude conditions. FiaPhy calculates actual moist air density $\rho$ from measured temperature $T$, pressure $P$, and relative humidity $RH$ using the ideal gas law for gas mixtures:
-
-$$\rho = \frac{P_d}{R_d T} + \frac{e}{R_v T}$$
-
-where $P_d$ is the partial pressure of dry air, $e$ is water vapor pressure, $R_d = 287.058$ J/(kg·K) is the specific gas constant for dry air, and $R_v = 461.495$ J/(kg·K) is the specific gas constant for water vapor. The dry air pressure is computed as:
-
-$$P_d = P - e$$
-
-Vapor pressure $e$ relates to saturation vapor pressure $e_s$ through relative humidity:
-
-$$e = \frac{RH}{100} \cdot e_s(T)$$
-
-Saturation vapor pressure follows the Magnus formula (Alduchov & Eskridge, 1996), accurate to within 0.4% across terrestrial temperature ranges:
-
-$$e_s(T) = 6.112 \cdot \exp\left(\frac{17.67 \cdot (T - 273.15)}{T - 29.65}\right)$$
-
-where temperature $T$ is in Kelvin and $e_s$ is in hectopascals (hPa). This formulation corrects the common error of applying Magnus coefficients to Celsius temperatures without proper conversion, which introduces errors exceeding 5% at elevated temperatures.
-
-**Altitude Dependence:** At 3000m elevation, atmospheric pressure drops to approximately 700 hPa (compared to 1013 hPa at sea level), reducing air density by 30%. This proportionally decreases convective heat transfer coefficients, causing naïve radiation inversions to underestimate GHI by the same factor. FiaPhy's barometric pressure input compensates for this effect automatically, enabling deployment from Death Valley (−86m) to Himalayan research stations (>5000m) without recalibration.
-
-**Humidity Effects:** Water vapor is less dense than dry air (molecular mass 18 g/mol vs. 29 g/mol), counterintuitively reducing total air density as humidity increases. At 100% RH and 30°C, this effect lowers density by 2% relative to dry air. While seemingly minor, this directly impacts convective coefficients and must be included for sub-5% accuracy targets.
-
-### 2.2 Convective Heat Transfer Coefficient
-
-The convective heat transfer coefficient $h_c$ quantifies the rate of heat exchange between a surface and ambient air, governing the temperature rise of the flux sensor under solar loading. For a horizontal surface in natural convection (applicable to stationary sensor deployments), empirical correlations yield:
-
-$$h_c = 5.7 + 3.8 \cdot v$$
-
-where $v$ is wind speed in m/s. In still air ($v = 0$), $h_c \approx 5.7$ W/(m²·K). For deployments without anemometry, FiaPhy defaults to still-air assumptions, accepting slight underestimation of GHI during windy conditions (typically <10% error).
-
-**Altitude Correction:** Since $h_c$ scales with air density through the Prandtl number, we apply:
-
-$$h_c(\rho) = h_c(STP) \cdot \sqrt{\frac{\rho}{\rho_{STP}}}$$
-
-where $\rho_{STP} = 1.225$ kg/m³ is the density at standard temperature and pressure. This square-root dependence arises from laminar boundary layer theory and has been validated experimentally for natural convection on horizontal plates.
-
-### 2.3 Specific Enthalpy of Moist Air
-
-Energy balance calculations require accounting for both sensible heat (temperature change) and latent heat (moisture content). The specific enthalpy $h$ of moist air is:
-
-$$h = c_{p,da} \cdot T + x \cdot (L_v + c_{p,v} \cdot T)$$
-
-where:
-- $c_{p,da} = 1.006$ kJ/(kg·K) is the specific heat of dry air
-- $x$ is the humidity mixing ratio (kg water vapor / kg dry air)
-- $L_v = 2501$ kJ/kg is the latent heat of vaporization at 0°C
-- $c_{p,v} = 1.86$ kJ/(kg·K) is the specific heat of water vapor
-
-The mixing ratio $x$ is computed from vapor pressure:
-
-$$x = \frac{\epsilon \cdot e}{P - e}$$
-
-where $\epsilon = R_d / R_v \approx 0.622$. This formulation enables accurate energy flux calculations in humid climates where latent heat transport rivals sensible heat.
-
-### 2.4 Stefan-Boltzmann Radiation
-
-While solar shortwave radiation dominates daytime energy balance, longwave radiative exchange with the sky contributes to sensor temperature offsets. The net radiative flux is:
-
-$$q_{rad} = \epsilon \sigma (T_{sensor}^4 - T_{sky}^4)$$
-
-where $\epsilon$ is surface emissivity (typically 0.90-0.95 for painted surfaces), $\sigma = 5.67 \times 10^{-8}$ W/(m²·K⁴) is the Stefan-Boltzmann constant, and $T_{sky}$ is the effective sky temperature. For clear skies:
-
-$$T_{sky} \approx T_{ambient} - 20\text{K}$$
-
-This longwave correction is small compared to solar shortwave flux during daytime (typically <50 W/m² vs. >1000 W/m² solar), but becomes significant during nighttime validation and influences self-heating corrections.
-
-## 3. Dual-Pipeline Algorithm Architecture
-
-FiaPhy employs two independent radiation estimation pathways that operate concurrently and are fused to produce the final GHI output. This architecture addresses the complementary weaknesses of each approach: the Reference Path provides long-term stability and absolute calibration through well-established humidity-cloud relationships, while the Reactive Path captures transient irradiance fluctuations with sub-second temporal resolution through direct thermal sensing. The fusion logic adaptively weights these estimates based on atmospheric conditions and signal quality metrics.
-
-### 3.1 Reference Path: Kasten-Czeplak Cloud Proxy Model
-
-The Reference Path estimates GHI from relative humidity measurements using the empirical observation that cloud formation correlates with atmospheric moisture content. This method provides robust baseline estimates insensitive to sensor thermal dynamics but exhibits response times of 10-30 minutes due to atmospheric mixing timescales. The Kasten-Czeplak model (Kasten & Czeplak, 1980) relates cloud fraction $N$ to humidity through:
-
-$$N = \left(\frac{RH}{100}\right)^{1.8}$$
-
-The exponent 1.8 is empirically derived from European meteorological data and represents the nonlinear relationship between boundary-layer humidity and cloud optical depth. Clear-sky irradiance $G_{cs}$ is computed from solar geometry (zenith angle $\theta_z$, day of year $n$) using the simplified Bird model:
-
-$$G_{cs} = I_0 \cdot \cos(\theta_z) \cdot \tau_{atm}$$
-
-where $I_0 = 1367$ W/m² is the solar constant and $\tau_{atm}$ is atmospheric transmittance accounting for Rayleigh scattering, ozone absorption, and water vapor attenuation. For altitudes below 2000m, a simplified transmittance formula suffices:
-
-$$\tau_{atm} = 0.7 \cdot (0.678)^{AM}$$
-
-where $AM$ is the air mass computed from zenith angle via:
-
-$$AM = \frac{1}{\cos(\theta_z) + 0.15 \cdot (93.885 - \theta_z)^{-1.253}}$$
-
-Cloud attenuation follows the Kasten-Czeplak relationship:
-
-$$G_{ref} = G_{cs} \cdot (1 - 0.75 \cdot N^{3.4})$$
-
-The coefficient 0.75 represents maximum cloud attenuation (25% transmission through overcast stratus), and the exponent 3.4 captures the nonlinear optical depth scaling with cloud fraction.
-
-**Limitations:** This method fails during rapid transients (passing clouds, solar eclipses) due to the 10-30 minute lag between humidity changes and irradiance changes. Additionally, it requires calibration to local climatology, as the humidity-cloud relationship varies with geographic location (maritime vs. continental climates) and season (summer vs. winter boundary layer depths).
-
-### 3.2 Reactive Path: Differential Temperature Inversion
-
-The Reactive Path inverts Newton's Law of Cooling applied to the flux sensor surface energy balance. Under solar irradiance $G$, the flux sensor (coated with high-absorptivity black paint, $\alpha \approx 0.90$) reaches an equilibrium temperature $T_{flux}$ above the ambient reference temperature $T_{ref}$ determined by:
-
-$$\alpha \cdot G = h_c \cdot (T_{flux} - T_{ref}) + \epsilon \sigma (T_{flux}^4 - T_{sky}^4)$$
-
-For temperature differentials below 20°C (typical for GHI < 1200 W/m²), the radiative term contributes <5% and is absorbed into calibration constants. The simplified energy balance becomes:
-
-$$G = \frac{h_c}{\alpha} \cdot (T_{flux} - T_{ref} - T_{offset})$$
-
-where $T_{offset}$ accounts for sensor self-heating from electronic power dissipation (typically 0.5-1.0°C for I2C sensors drawing 1-2 mA at 3.3V).
-
-**Thermal Lag Compensation:** Temperature sensors exhibit first-order thermal response with time constant $\tau$ (typically 15-45 seconds in still air). During transient irradiance changes, the measured temperature lags the true surface temperature:
-
-$$T_{measured}(t) = T_{true}(t) - \tau \cdot \frac{dT_{true}}{dt}$$
-
-This lag causes severe underestimation of irradiance during cloud-edge transients, where $dG/dt$ can exceed 500 W/m²/s. The INR (Inertial Noise Reduction) filter recovers the instantaneous temperature by estimating the derivative $dT/dt$ from the filtered temperature history and projecting forward:
-
-$$T_{instantaneous} = T_{filtered} + \tau \cdot \frac{dT_{filtered}}{dt}$$
-
-The derivative is computed via central finite difference:
-
-$$\frac{dT}{dt} \approx \frac{T[n] - T[n-2]}{2 \Delta t}$$
-
-where $\Delta t$ is the sampling interval (typically 1 second). This projection effectively cancels the sensor's thermal inertia, enabling accurate tracking of rapid irradiance fluctuations.
-
-**Solar Air Temperature Excess:** Combining the differential measurement with lag compensation yields the "solar air excess temperature":
-
-$$T_{sol} = (T_{flux} - T_{ref}) + \tau \cdot \frac{dT_{flux}}{dt} - T_{offset}$$
-
-The final GHI estimate is:
-
-$$G_{reactive} = \frac{h_c}{\alpha} \cdot T_{sol}$$
-
-### 3.3 Fusion Logic and Confidence Scoring
-
-The final GHI output is a weighted combination of the Reference and Reactive Path estimates:
-
-$$G_{final} = w \cdot G_{reactive} + (1-w) \cdot G_{ref}$$
-
-The weighting factor $w$ adapts based on signal quality metrics:
-- **Steady-state conditions** ($|dT/dt| < 0.1$°C/s): $w = 0.3$ (favor stable Reference Path)
-- **Transient conditions** ($|dT/dt| > 0.5$°C/s): $w = 0.7$ (favor responsive Reactive Path)
-- **Intermediate regime:** Linear interpolation
-
-This adaptive fusion ensures stability during clear-sky conditions while preserving transient response during cloud passage. A confidence score $C \in [0,1]$ is computed based on:
-- Agreement between pathways: $C_{agree} = 1 - |G_{reactive} - G_{ref}| / G_{ref}$
-- Signal-to-noise ratio: $C_{SNR} = T_{sol} / \sigma_T$ where $\sigma_T$ is temperature noise (typically 0.1°C)
-- Temporal consistency: $C_{temporal} = 1 - |\Delta G / \Delta t| / 100$ (penalize physically implausible irradiance rates)
-
-The overall confidence is the geometric mean: $C = (C_{agree} \cdot C_{SNR} \cdot C_{temporal})^{1/3}$.
-
-### 3.4 Comparison of Differential Pipeline Characteristics
-
-| Characteristic | Reference Path (Kasten-Czeplak) | Reactive Path (Differential) |
-|---|---|---|
-| **Physical Basis** | Humidity-cloud correlation (empirical) | Surface energy balance (first-principles) |
-| **Temporal Resolution** | 10-30 minutes (atmospheric mixing) | 1-2 seconds (sensor thermal response) |
-| **Absolute Accuracy** | ±15% (requires local calibration) | ±8% (physics-based, altitude-adaptive) |
-| **Transient Response** | Poor (fails during cloud edges) | Excellent (tracks 500 W/m²/s ramps) |
-| **Sensor Requirements** | Humidity + temperature + pressure | 2× temperature + pressure |
-| **Altitude Dependence** | Weak (humidity climatology varies) | Strong (corrected via barometric pressure) |
-| **Failure Modes** | Fog/mist (100% RH, no clouds) | Still-air overestimation (convection ceases) |
-| **Computational Cost** | Low (exponentials, power functions) | Moderate (derivatives, adaptive filtering) |
-| **Calibration Stability** | Drifts with seasonal climatology | Stable (fundamental constants) |
-
-## 4. Inertial Noise Reduction (INR) Filter
-
-Temperature sensors exhibit thermal inertia characterized by exponential response to step changes in true temperature. For a sensor with thermal time constant $\tau$, the measured temperature $T_m$ lags the true surface temperature $T_s$ according to the first-order differential equation:
-
-$$\tau \frac{dT_m}{dt} + T_m = T_s$$
-
-In the frequency domain, this represents a low-pass filter with cutoff frequency $f_c = 1/(2\pi\tau)$. For typical environmental sensors with $\tau = 30$s, this corresponds to $f_c \approx 0.005$ Hz, severely attenuating irradiance transients with periods shorter than 3 minutes. The INR filter compensates for this lag by estimating the instantaneous surface temperature from the filtered measurement history.
-
-### 4.1 Adaptive Exponential Moving Average
-
-The INR filter employs a two-stage architecture: adaptive smoothing followed by derivative-based projection. The adaptive exponential moving average (EMA) filters raw temperature measurements $T_{raw}[n]$ to reduce sensor noise while preserving signal bandwidth:
-
-$$T_{filt}[n] = \alpha \cdot T_{raw}[n] + (1-\alpha) \cdot T_{filt}[n-1]$$
-
-The smoothing factor $\alpha \in [0.05, 0.8]$ adapts based on signal deviation:
-
-$$\alpha = \alpha_{min} + k \cdot |T_{raw}[n] - T_{filt}[n-1]|$$
-
-where $k = 2.0$ is a sensitivity gain and $\alpha$ is clamped to the specified range. This adaptation increases filter responsiveness during rapid temperature changes (cloud edges) while maintaining heavy smoothing during steady-state conditions (clear sky). The dynamic range $[\alpha_{min}, \alpha_{max}] = [0.05, 0.8]$ was optimized empirically to balance noise rejection against transient tracking.
-
-### 4.2 Derivative Estimation via Circular Buffer
-
-The temperature derivative $dT/dt$ is estimated using a central finite difference applied to the filtered temperature history stored in a circular buffer of length $L = 10$ samples:
-
-$$\frac{dT}{dt} \approx \frac{T_{filt}[n] - T_{filt}[n-2]}{2\Delta t}$$
-
-where $\Delta t$ is the sampling interval (typically 1 second). The central difference formula provides superior noise rejection compared to forward/backward differences while introducing only 2-sample delay (negligible for 1-second sampling). The circular buffer enables constant-time $O(1)$ derivative computation without dynamic memory allocation, critical for embedded deployments.
-
-### 4.3 Thermal Lag Projection
-
-The instantaneous surface temperature $T_{inst}$ is projected from the filtered measurement using the estimated derivative:
-
-$$T_{inst}[n] = T_{filt}[n] + \tau \cdot \frac{dT_{filt}}{dt}[n]$$
-
-This projection effectively inverts the sensor's thermal lag, recovering high-frequency temperature components attenuated by the sensor's $RC$ time constant. The thermal time constant $\tau$ is either specified from sensor datasheets (typically 20-40 seconds for exposed thermistors in still air) or auto-calibrated via step-response analysis (Section 7.2).
-
-**Stability Analysis:** The projection introduces potential instability if $\tau$ is overestimated or derivative noise is excessive. To ensure bounded output, we clamp the correction term:
-
-$$|\tau \cdot dT/dt| < 5\text{°C}$$
-
-This limit prevents runaway projections during sensor glitches while permitting tracking of realistic transients (e.g., 1000 W/m² irradiance step over 30s time constant yields 3°C correction).
-
-### 4.4 Performance Characterization
-
-The INR filter was validated against synthetic step responses and real-world cloud-edge transients. For a sensor with $\tau = 30$s subjected to a 10°C instantaneous temperature jump (simulating a 1000 W/m² irradiance step on a flux sensor):
-
-- **Unfiltered measurement:** 95% rise time = 90 seconds
-- **INR-projected output:** 95% rise time = 3 seconds (30× improvement)
-- **Overshoot:** <5% (critically damped response)
-- **Noise amplification:** 1.5× RMS compared to raw signal (acceptable for SNR > 10)
-
-The filter introduces approximately 2-second group delay due to the central difference operation, negligible compared to the 30-second sensor time constant. Computational cost is dominated by the exponential in the EMA update, requiring approximately 50 CPU cycles per sample on ARM Cortex-M4 cores at 80 MHz.
-
-## 5. Implementation Details
-
-### 5.1 Sensor Frame Synchronization
-
-Accurate differential sensing requires synchronized temperature measurements from the reference and flux sensors, as temporal misalignment introduces spurious differential signals during rapidly changing conditions. FiaPhy implements a frame-based acquisition model where T/H/P (temperature/humidity/pressure) triplets from each sensor are buffered until all required values are present, then processed atomically.
-
-The `SensorHub` class manages up to 8 sensor pairs (16 total sensors), tracking completion status via bitmask flags. Each sensor frame contains:
-
-```
-struct SensorFrame {
-    float temperature_C;
-    float humidity_RH;
-    float pressure_hPa;
-    uint8_t sensor_id;
-    bool has_temperature;
-    bool has_humidity;
-    bool has_pressure;
-    bool complete;
-};
-```
-
-Frames are marked complete when all three values are populated within a temporal window (default 2 seconds). The `getDifferentialFrame()` method returns synchronized reference-flux pairs:
-
-```
-struct DifferentialFrame {
-    SensorFrame ref;
-    SensorFrame flux;
-    bool valid;
-};
-```
-
-This structure is passed to the physics engine for processing. Asynchronous sensor polling (common with I2C/SPI devices) is abstracted behind feed methods:
-
-```
-feedReferenceTemperature(value, sensor_id);
-feedFluxHumidity(value, sensor_id);
-```
-
-### 5.2 Validation and Sanity Checks
-
-Input validation prevents sensor glitches and communication errors from propagating into radiation estimates. FiaPhy performs multi-stage validation:
-
-**Range Checking:** Physical plausibility bounds reject obviously erroneous readings:
-- Temperature: $[-100, +100]$°C (captures terrestrial extremes)
-- Humidity: $[0, 100]$% (enforce physical bounds)
-- Pressure: $[300, 1200]$ hPa (Death Valley to Everest range)
-
-**Jump Detection:** Rapid value changes exceeding physical constraints trigger rejection:
-- Temperature: $< 5$°C/s (prevents I2C read errors presenting as spikes)
-- Humidity: $< 20$%/s (atmospheric mixing timescales)
-- Pressure: $< 10$ hPa/s (barometric wave limits)
-
-**Symmetry Validation:** For multi-sensor arrays, the number of active temperature/humidity/pressure sensors must match within each sensor type (reference vs. flux) to prevent partial frame corruption.
-
-Failed validation returns `RadiationResult::invalid()` with error codes indicating failure mode:
-- `SENSOR_ASYMMETRY`: Unequal T/H/P counts
-- `UNREALISTIC_JUMP`: Physically impossible rate of change
-- `VALUE_OUT_OF_RANGE`: Reading outside plausible bounds
-- `INSUFFICIENT_SENSORS`: Minimum sensor pair count not met
-
-### 5.3 Altitude-Adaptive Corrections
-
-Barometric pressure measurements enable automatic altitude compensation without requiring user-supplied elevation data. The altitude $h$ (in meters) is estimated from pressure $P$ (in hPa) using the hypsometric equation:
-
-$$h \approx \frac{T_0}{L} \left[1 - \left(\frac{P}{P_0}\right)^{RL/g}\right]$$
-
-where $T_0 = 288.15$K, $P_0 = 1013.25$ hPa, $L = 0.0065$ K/m (lapse rate), $R = 287$ J/(kg·K), and $g = 9.81$ m/s². This provides altitude estimates accurate to ±50m, sufficient for air density corrections.
-
-Air density $\rho$ is computed from measured temperature and pressure using the ideal gas law (Section 2.1), automatically accounting for elevation effects. Convective heat transfer coefficients scale as $h_c \propto \sqrt{\rho}$, ensuring radiation inversions remain accurate from sea level to 4000m without recalibration.
-
-### 5.4 Memory Management and Embedded Optimization
-
-FiaPhy avoids dynamic memory allocation entirely, enabling deployment on microcontrollers with limited RAM (validated on Arduino Uno with 2KB RAM). All data structures use fixed-size buffers:
-
-- Sensor frame buffers: $8 \times 2 \times 40\text{ bytes} = 640\text{ bytes}$
-- INR filter state: $2 \times 100\text{ bytes} = 200\text{ bytes}$
-- Physics engine working memory: $<300\text{ bytes}$
-
-Total static memory footprint: <2KB. Flash memory (code size) is approximately 24KB on ARM Cortex-M0 with -Os optimization, fitting comfortably within 32KB constraints of low-cost MCUs.
-
-Floating-point calculations target hardware FPU on ARM Cortex-M4/ESP32 platforms, yielding 10-20× speedup over software emulation. For 8-bit AVR platforms lacking FPU, fixed-point arithmetic is recommended (see Section 8.1).
-
-## 6. Software Architecture
-
-FiaPhy follows a modular layered architecture separating physics modeling, signal processing, hardware abstraction, and application interfaces. This design enables independent testing of algorithmic components, platform-agnostic portability, and extensibility for future sensor types or radiation models.
-
-### 6.1 Core Modules
-
-**PhysicsEngine:** Implements the dual-pipeline algorithm (Section 3), orchestrating Reference and Reactive Path computations and fusion logic. The `compute()` method accepts a `DifferentialFrame` containing synchronized sensor data and returns a `RadiationResult` structure with GHI estimate, confidence score, and diagnostic metadata.
-
-**SensorHub:** Manages sensor frame synchronization, validation, and buffering for multi-sensor arrays. Provides hardware-agnostic feed methods for asynchronous sensor polling and generates `DifferentialFrame` structures when complete data is available.
-
-**Thermodynamics:** Encapsulates moist air property calculations (Section 2): air density, vapor pressure, specific enthalpy, and convective coefficients. All functions are stateless and header-inline for zero call overhead.
-
-**SolarGeometry:** Computes solar position (zenith angle, azimuth, equation of time) from geographic coordinates and UTC timestamp. Provides clear-sky irradiance models for Reference Path baseline computation. Requires real-time clock hardware for accurate solar position; defaults to solar noon (zenith = 0°) if time unavailable.
-
-**INRFilter:** Implements adaptive exponential moving average with thermal lag compensation (Section 4). Maintains circular buffer history and derivative state per sensor channel.
-
-### 6.2 Platform Abstraction Layer
-
-The `Logger` class provides unified logging across platforms:
-- **Arduino:** Serial output at 115200 baud
-- **Raspberry Pi:** syslog integration with PID tagging
-- **ESP32:** ESP-IDF logging framework with WiFi remote logging option
-- **Generic POSIX:** stdout with timestamp prefixes
-
-Log levels (DEBUG, INFO, WARN, ERROR) are compile-time configurable to reduce flash/RAM footprint in production deployments.
-
-### 6.3 Header-Only Design
-
-FiaPhy is distributed as header-only C++11 code, eliminating linking complexity and enabling aggressive inlining by compilers. The entire library is included via:
-
-```cpp
-#include <FiaPhy.h>
-```
-
-This approach is standard for embedded math libraries (Eigen, GLM) and avoids CMake/Makefile fragmentation across Arduino, PlatformIO, and bare-metal toolchains.
-
-## 7. Calibration and Deployment
-
-### 7.1 Essential System Parameters
-
-Accurate GHI reconstruction requires proper calibration of sensor-specific thermal properties and optical characteristics. The following parameters are critical:
-
-| Parameter | Symbol | Typical Range | Measurement Method | Sensitivity |
-|---|---|---|---|---|
-| Thermal time constant | $\tau$ | 20-50 seconds | Step response test (Section 7.2) | High (±20% error → ±15% GHI error) |
-| Solar absorptivity | $\alpha$ | 0.85-0.95 | Laboratory spectrophotometer or pyranometer comparison | Moderate (±5% error → ±5% GHI error) |
-| Sensor self-heating | $T_{offset}$ | 0.5-1.5°C | Nighttime baseline measurement | Low (±0.5°C → ±2% GHI error) |
-| Convective area | $A_s$ | 1-10 cm² | Geometric measurement | Low (ratiometric cancellation) |
-
-**Thermal Time Constant ($\tau$):** Dominates INR filter performance. Underestimation causes overshoot during transients; overestimation reduces transient response. Auto-calibration (Section 7.2) is strongly recommended.
-
-**Solar Absorptivity ($\alpha$):** Depends on flux sensor surface coating. Flat black paint (3M Nextel Velvet) achieves $\alpha > 0.95$ across solar spectrum. Bare PCB (green soldermask) yields $\alpha \approx 0.60$, reducing sensitivity proportionally. Calibration against a reference pyranometer for 1-hour clear-sky period enables empirical determination.
-
-**Self-Heating Offset ($T_{offset}$):** Electronic power dissipation (typically 3-10 mW for I2C sensors) elevates sensor temperature by 0.5-1.5°C depending on thermal resistance to ambient. Measure by recording flux sensor temperature at night (zero irradiance) relative to reference sensor. This offset is subtracted from the differential signal.
-
-### 7.2 Auto-Calibration of Thermal Time Constant
-
-The thermal time constant $\tau$ can be auto-calibrated in situ by analyzing transient response to natural irradiance changes (e.g., passing clouds). The method exploits the first-order exponential decay relationship:
-
-$$T(t) = T_{\infty} + (T_0 - T_{\infty}) e^{-t/\tau}$$
-
-During a step change in irradiance (detected via rapid derivative $|dT/dt| > 0.5$°C/s), the algorithm records temperature samples and fits an exponential curve via least-squares regression on the log-linearized form:
-
-$$\ln(T - T_{\infty}) = \ln(T_0 - T_{\infty}) - \frac{t}{\tau}$$
-
-The time constant $\tau$ is extracted from the slope. Multiple transient events are averaged to reduce noise. Typical calibration completes within 5-10 cloud passages (1-2 hours under partly cloudy conditions).
-
-**Automated Triggering:** The calibration routine activates automatically when:
-1. Derivative magnitude exceeds 0.5°C/s (indicates transient)
-2. Subsequent samples exhibit monotonic decay (eliminates noisy fluctuations)
-3. Decay spans at least 3× the expected time constant (ensures adequate sample range)
-
-### 7.3 Multi-Sensor Array Configuration
-
-For spatial irradiance mapping or redundancy, FiaPhy supports up to 8 sensor pairs (16 total sensors). Each pair is assigned a unique ID (0-7) and configured via:
-
-```cpp
-dtdss.feedReferenceTemperature(temp, pair_id);
-dtdss.feedFluxTemperature(temp, pair_id);
-```
-
-Sensor arrays enable:
-- **Spatial Gradient Analysis:** Detect shading patterns from nearby obstacles (trees, buildings) by comparing GHI across 10m baselines.
-- **Redundancy and Outlier Rejection:** Median filtering across multiple pairs rejects single-sensor failures or bird strike contamination.
-- **Multi-Height Profiling:** Vertical sensor spacing (e.g., 1m, 2m, 5m heights) reveals boundary layer mixing and localized ground reflection effects.
-
-Each sensor pair operates independently through the physics engine, with fusion occurring at the system level. Failed pairs (incomplete frames, validation errors) are excluded from ensemble averaging without blocking remaining pairs.
-
-### 7.4 Real-Time Clock Integration
-
-Accurate solar position calculation requires UTC timestamp input. FiaPhy integrates with common RTC modules:
-- **Arduino:** DS3231 I2C RTC via `RTClib` library
-- **Raspberry Pi:** System time via `time.h`
-- **ESP32:** SNTP synchronization from NTP servers
-
-If RTC hardware is unavailable, the library defaults to "solar noon" geometry (zenith angle = 0°), yielding approximate clear-sky GHI suitable for daytime operation but inaccurate during morning/evening hours. Users are strongly encouraged to include RTC hardware for production deployments.
-
-## 8. Performance Validation
-
-### 8.1 Experimental Methodology
-
-FiaPhy was validated against calibrated reference instruments across diverse meteorological conditions to assess accuracy, temporal resolution, and failure modes. The validation testbed consisted of:
-
-**Reference Instrumentation:**
-- Kipp & Zonen CMP11 pyranometer (ISO 9060 Secondary Standard, accuracy ±2%)
-- Campbell Scientific CR1000 datalogger sampling at 1 Hz
-- Vaisala WXT536 weather station (temperature, humidity, pressure, wind speed)
-
-**FiaPhy Sensor Configuration:**
-- Reference sensor: Bosch BME280 (±0.5°C, ±3% RH, ±1 hPa) in naturally ventilated radiation shield (similar to Stevenson screen)
-- Flux sensor: Bosch BME280 exposed to sky, coated with 3M Nextel Velvet black paint ($\alpha = 0.97$)
-- Microcontroller: ESP32-DevKitC (240 MHz dual-core, 520 KB RAM)
-- Sampling rate: 1 Hz (synchronized with pyranometer)
-- Geographic location: 7.2906°N, 80.6337°E (Colombo, Sri Lanka, elevation 5m)
-
-**Test Conditions:**
-The dataset spans 30 days (March 2024) encompassing diverse sky conditions:
-- Clear sky: 8 days (GHI 600-1100 W/m²)
-- Partly cloudy: 12 days (intermittent cumulus, GHI 200-900 W/m²)
-- Overcast: 6 days (stratocumulus deck, GHI 100-400 W/m²)
-- Scattered showers: 4 days (rapid transients, GHI 50-700 W/m²)
-
-Air temperature range: 24-34°C; relative humidity: 60-95%; wind speed: 0.5-5 m/s.
-
-### 8.2 Accuracy Metrics
-
-Performance is quantified via standard error metrics comparing FiaPhy output $G_{est}$ against pyranometer reference $G_{ref}$:
-
-**Mean Absolute Error (MAE):**
-$$\text{MAE} = \frac{1}{N} \sum_{i=1}^N |G_{est,i} - G_{ref,i}|$$
-
-**Root Mean Square Error (RMSE):**
-$$\text{RMSE} = \sqrt{\frac{1}{N} \sum_{i=1}^N (G_{est,i} - G_{ref,i})^2}$$
-
-**Mean Bias Error (MBE):**
-$$\text{MBE} = \frac{1}{N} \sum_{i=1}^N (G_{est,i} - G_{ref,i})$$
-
-Positive MBE indicates systematic overestimation; negative indicates underestimation.
-
-**Coefficient of Determination ($R^2$):**
-$$R^2 = 1 - \frac{\sum (G_{ref,i} - G_{est,i})^2}{\sum (G_{ref,i} - \bar{G}_{ref})^2}$$
-
-Measures fraction of variance explained by the model ($R^2 = 1$ is perfect agreement).
-
-### 8.3 Results Summary
-
-Aggregated performance across all 30 days:
-
-- **MAE:** 78.4 W/m² (7.8% of mean GHI)
-- **RMSE:** 112.6 W/m² (11.2% of mean GHI)
-- **MBE:** +12.3 W/m² (slight overestimation bias)
-- **$R^2$:** 0.91 (strong correlation)
-
-Performance stratified by sky condition:
-
-**Clear Sky (GHI > 600 W/m²):**
-- MAE: 52.1 W/m² (5.2%)
-- RMSE: 67.8 W/m² (6.8%)
-- Primary error source: Convective coefficient uncertainty (still-air assumption)
-
-**Partly Cloudy (200 < GHI < 600 W/m²):**
-- MAE: 89.7 W/m² (8.9%)
-- RMSE: 124.3 W/m² (12.4%)
-- Primary error source: Thermal lag mismatch during rapid transients
-
-**Overcast (GHI < 200 W/m²):**
-- MAE: 31.2 W/m² (15.6% relative error, but small absolute)
-- RMSE: 43.9 W/m² (22.0%)
-- Primary error source: Reduced signal-to-noise ratio at low irradiance
-
-### 8.4 Transient Response Analysis
-
-FiaPhy's key advantage over conventional humidity-cloud proxies is rapid response to transient irradiance changes. This was quantified by analyzing cloud-edge events where GHI changes by >500 W/m² within 10 seconds.
-
-**Test Case: Cumulus Cloud Passage**
-At timestamp 14:23:15 UTC, a cumulus cloud transited the sun, causing GHI to drop from 950 W/m² to 280 W/m² in 6 seconds (ramp rate: -112 W/m²/s).
-
-- **Pyranometer (reference):** 95% response in 1.0 seconds (thermocouple time constant)
-- **FiaPhy (Reactive Path):** 95% response in 2.8 seconds (including INR projection)
-- **Humidity-based proxy:** 95% response in 8.5 minutes (atmospheric mixing lag)
-
-The Reactive Path tracks the transient with 2.8-second lag, dominated by the 1-second sampling rate and 2-sample derivative delay. This represents 170× faster response than humidity-based methods, enabling cloud detection and solar forecasting applications impossible with conventional soft-sensing.
-
-**Overshoot and Ringing:** The INR filter introduces <5% overshoot during step responses, critically damped to avoid ringing. This is controlled via the adaptive EMA gain and derivative clamping limits.
-
-### 8.5 Altitude Validation
-
-To validate altitude-adaptive corrections, FiaPhy was deployed at three elevations:
-- **Colombo (5m):** Reference dataset (Section 8.1)
-- **Nuwara Eliya (1990m):** Tea plantation region, 20% pressure drop
-- **Horton Plains (2100m):** Highland plateau, 23% pressure drop
-
-Without altitude correction (naïve air density assumption), high-elevation sites exhibited systematic 18-22% underestimation of GHI. With barometric pressure compensation, errors reduced to baseline levels (MAE < 8%), validating the $h_c \propto \sqrt{\rho}$ scaling law.
-
-### 8.6 Comparison to Existing Methods
-
-| Method | MAE (W/m²) | Temporal Resolution | Sensor Cost (USD) | Calibration Required |
-|---|---|---|---|---|
-| Kipp & Zonen CMP11 (reference) | ±20 (2%) | 1 second | $2000 | Factory |
-| FiaPhy (this work) | 78 (7.8%) | 2 seconds | $10 | Auto-calibration |
-| Perez et al. (1999) humidity proxy | 145 (14.5%) | 30 minutes | $5 | Site-specific |
-| Mueller et al. (2004) satellite | 95 (9.5%) | 1 hour | N/A (free) | None |
-| Machine learning (neural network) | 62 (6.2%) | 1 hour | $5 | Months of training data |
-
-FiaPhy achieves 2.4× better temporal resolution than humidity proxies and 30× lower cost than pyranometers, with accuracy competitive with machine learning methods but without requiring site-specific training datasets.
-
-## 9. Limitations and Future Work
-
-### 9.1 Known Limitations
-
-**Convective Coefficient Uncertainty:** The simplified natural convection formula ($h_c = 5.7$ W/(m²·K) in still air) neglects wind speed and surface orientation effects. Under forced convection (wind speed >5 m/s), convective losses increase by 50-100%, causing underestimation of GHI. Future versions will integrate anemometer data to apply wind-speed-dependent correlations.
-
-**Nighttime Behavior:** At zero irradiance, the differential temperature signal approaches the noise floor (±0.1°C), causing GHI estimates to fluctuate around ±10 W/m². The validation logic rejects negative GHI values, but nighttime data should be excluded from radiometric analysis. A solar elevation threshold (e.g., reject when elevation < 5°) is recommended.
-
-**Spectral Response:** The differential method measures total absorbed radiation (shortwave + longwave). While solar shortwave dominates during daytime (>95% of signal), longwave cooling to the night sky can introduce 20-40 W/m² bias during twilight hours. Spectral filtering (e.g., quartz dome over flux sensor) could isolate shortwave-only response if required.
-
-**Precipitation Sensitivity:** Water droplets on the flux sensor increase thermal mass and alter absorptivity, causing temporary GHI underestimation during rain events. A heated sensor enclosure or hydrophobic coating (e.g., Teflon) mitigates this effect. The validation logic should flag rapid humidity spikes (RH > 95% within 60 seconds) as potential precipitation.
-
-### 9.2 Ongoing Enhancements
-
-**Real-Time Clock Integration:** Current deployments require manual UTC timestamp input. Automatic NTP synchronization (ESP32) or GPS time (Arduino/Raspberry Pi) will enable unattended long-term operation with accurate solar geometry.
-
-**Machine Learning Fusion:** Preliminary experiments with gradient-boosted decision trees (XGBoost) trained on 6 months of FiaPhy+pyranometer data achieved MAE = 58 W/m² (5.8%), a 25% improvement over physics-only fusion. This hybrid approach combines FiaPhy's physical interpretability with data-driven error correction.
-
-**Multi-Spectral Extension:** Adding UV and IR photodiodes alongside thermal sensors would enable spectral decomposition (direct vs. diffuse irradiance) critical for photovoltaic modeling. The differential thermal method would provide total GHI baseline, while photodiodes separate spectral components.
-
-**Low-Power Mode:** For battery-operated IoT nodes, adaptive sampling (1 Hz during transients, 0.1 Hz during steady-state) could reduce power consumption by 5×. Event-driven sampling triggered by rapid derivative detection would preserve transient response while minimizing energy usage.
-
-### 9.3 Research Directions
-
-**Diffuse vs. Direct Decomposition:** Current method measures global horizontal irradiance (total hemispheric). Separating direct beam from diffuse sky radiation requires shadow-band pyranometry or sky-pointing sensors. A dual-sensor configuration (one sky-facing, one shaded) could enable low-cost diffuse/direct split.
-
-**Cloud Type Classification:** The transient response signature (rise time, overshoot magnitude) correlates with cloud optical properties (thin cirrus vs. thick cumulus). Machine learning on derivative waveforms could classify cloud types for solar forecasting.
-
-**Spatial Interpolation Networks:** Dense FiaPhy arrays ($<$10m spacing) capture solar radiation heterogeneity from topographic shading, localized cloud streets, and ground albedo variations. Geostatistical methods (kriging, Gaussian processes) could interpolate high-resolution irradiance maps for precision agriculture.
-
-## 10. Related Work
-
-### 10.1 Pyranometer Alternatives
-
-Traditional solar radiation measurement relies on thermopile pyranometers (e.g., Eppley PSP, Kipp & Zonen CMP series) with costs exceeding $1000 for secondary-standard instruments. While photodiode-based sensors (e.g., Li-Cor LI-200) reduce costs to $200-300, they suffer from spectral response mismatch (silicon bandgap at 1100 nm vs. solar spectrum extending to 2500 nm) requiring temperature-dependent corrections.
-
-Campbell et al. (1988) demonstrated GHI estimation from temperature/humidity measurements using empirical regressions, achieving 15% accuracy under clear skies but failing during transients. Perez et al. (1999) improved humidity-cloud proxies to 10% accuracy by incorporating satellite cloud fraction data, but temporal resolution remained limited to hourly updates.
-
-### 10.2 Soft-Sensing and Virtual Instrumentation
-
-Soft-sensing—estimating unmeasured variables from available sensor data via physics-based or data-driven models—has been applied extensively in process control (chemical reactors, distillation columns). Kadlec et al. (2009) reviewed soft-sensor methodologies, highlighting hybrid approaches combining first-principles models with adaptive learning.
-
-In renewable energy, soft-sensing has primarily focused on wind power forecasting (physical models + numerical weather prediction) and photovoltaic performance modeling (irradiance-to-power mappings). Solar irradiance soft-sensing using commodity sensors is less explored, likely due to the complexity of atmospheric radiative transfer and the dominance of satellite-based products for grid-scale applications.
-
-### 10.3 Thermal Lag Compensation
-
-Thermal lag correction in sensor systems is well-established in aerospace (thermocouple response in turbulent flows) and HVAC (room temperature control). Tagawa & Ohta (1997) derived optimal derivative-based compensation for first-order thermal systems, demonstrating that projection using $T_{inst} = T_{meas} + \tau \cdot dT/dt$ recovers true temperature with minimal overshoot if $\tau$ is accurately known.
-
-FiaPhy's INR filter extends this concept with adaptive smoothing (EMA with dynamic $\alpha$) and auto-calibration via transient event detection. Similar adaptive filtering appears in control theory literature (Kalman filters, particle filters), but embedded implementations for microcontroller-based sensors are uncommon.
-
-### 10.4 Differential Sensing Techniques
-
-Differential measurement to cancel common-mode noise is fundamental in precision instrumentation: differential amplifiers (CMRR > 80 dB), lock-in amplifiers (phase-sensitive detection), and Wheatstone bridges (strain gauges, thermistors). FiaPhy applies this principle to solar radiometry, where the "signal" is solar-induced heating and "noise" is ambient temperature drift.
-
-Analogous dual-sensor approaches exist in remote sensing: ground-based sky radiometers measure direct vs. diffuse irradiance via shadow-band occlusion (rotating disk blocks direct beam). However, mechanical shadow-band systems cost >$5000 and require motorized tracking. FiaPhy achieves similar differential isolation via static reference-flux sensor pairing at 200× lower cost.
-
-## 11. Conclusion
-
-FiaPhy demonstrates that physics-informed sensor fusion transforms commodity environmental sensors into accurate radiometers competitive with instruments costing 200× more. By exploiting differential temperature sensing and inverting surface energy balance equations, the system achieves 7.8% mean absolute error in GHI estimation with 2-second temporal resolution, enabling applications from IoT solar forecasting to precision agriculture microclimate mapping.
-
-The dual-pipeline architecture—combining humidity-based Reference Path stability with differential Reactive Path responsiveness—addresses the fundamental trade-off between accuracy and transient response inherent in soft-sensing approaches. Altitude-adaptive thermodynamic corrections extend deployment feasibility from coastal to alpine environments without recalibration, while embedded-optimized C++ implementation enables operation on microcontrollers with 2KB RAM.
-
-Validation against calibrated pyranometers across 30 days of diverse meteorological conditions confirms robust performance: clear-sky accuracy within 5%, transient response 170× faster than conventional humidity proxies, and strong correlation ($R^2 = 0.91$) with reference instruments. Ongoing work integrates machine learning fusion to further reduce errors and extends spectral capabilities via UV/IR photodiodes.
-
-By democratizing solar radiation measurement, FiaPhy enables data-driven renewable energy optimization in resource-constrained contexts where traditional instrumentation is economically or logistically infeasible. The open-source library (MIT license, available at github.com/fiaos-org/FiaPhy) invites community contributions toward next-generation environmental sensing.
-
-## Acknowledgments
-
-This research was conducted independently without institutional funding. The author acknowledges the open-source hardware and software communities whose tools (Arduino, PlatformIO, ESP-IDF) enabled rapid prototyping and deployment. Meteorological validation data was collected with permission from the Department of Meteorology, Sri Lanka.
-
-## References
-
-Alduchov, O. A., & Eskridge, R. E. (1996). Improved Magnus form approximation of saturation vapor pressure. *Journal of Applied Meteorology*, 35(4), 601-609.
-
-Campbell, G. S., & Norman, J. M. (1998). *An Introduction to Environmental Biophysics* (2nd ed.). Springer-Verlag.
-
-Kadlec, P., Gabrys, B., & Strandt, S. (2009). Data-driven soft sensors in the process industry. *Computers & Chemical Engineering*, 33(4), 795-814.
-
-Kasten, F., & Czeplak, G. (1980). Solar and terrestrial radiation dependent on the amount and type of cloud. *Solar Energy*, 24(2), 177-189.
-
-Mueller, R. W., Dagestad, K. F., Ineichen, P., Schroedter-Homscheidt, M., Cros, S., Dumortier, D., ... & Reise, C. (2004). Rethinking satellite-based solar irradiance modelling: The SOLIS clear-sky module. *Remote Sensing of Environment*, 91(2), 160-174.
-
-Perez, R., Ineichen, P., Moore, K., Kmiecik, M., Chain, C., George, R., & Vignola, F. (2002). A new operational model for satellite-derived irradiances: description and validation. *Solar Energy*, 73(5), 307-317.
-
-Tagawa, Y., & Ohta, Y. (1997). Two-thermocouple probe for fluctuating temperature measurement in combustion—Rational estimation of mean and fluctuating time constants. *Combustion and Flame*, 109(4), 549-560.
+**Keywords:** Soft-sensing, Embedded Systems, IoT, Solar Irradiance, Heat Flux, Signal Processing.
 
 ---
 
-**Figure 1:** Differential sensing principle: flux sensor (black-coated, sky-exposed) vs. reference sensor (white-shielded). Temperature differential ΔT isolates solar heating from ambient drift.
+\* nekshavs@gmail.com, www.nekshadesilva.com  
+\** research@fiaos.org, www.fiaos.org/about
 
-**Figure 2:** Dual-pipeline architecture block diagram showing Reference Path (humidity→cloud proxy), Reactive Path (differential temperature→INR→radiation inversion), and adaptive fusion.
+## Introduction
 
-**Figure 3:** Time-series comparison during cloud passage event (14:23 UTC, March 15, 2024). FiaPhy (blue) tracks pyranometer reference (black) with 2.8-second lag, while humidity proxy (red) exhibits 8-minute delay.
+Current environmental monitoring relies on common sensors (like the Bosch BME280) that measure static variables: temperature, pressure, and humidity. And standard environmental sensors answer static questions:
 
-**Figure 4:** Scatter plot of estimated vs. measured GHI for 30-day validation dataset (N=2.59M samples). Color indicates sky condition: clear (green), partly cloudy (yellow), overcast (gray). $R^2 = 0.91$, MAE = 78.4 W/m².
+"What is the temperature?" or "How humid is it?"
 
-**Figure 5:** Error distribution histogram showing near-Gaussian residuals with slight positive bias (MBE = +12.3 W/m²). 68% of estimates within ±80 W/m², 95% within ±150 W/m².
+They remain unresponsive, however, to the dynamic energy exchanges that dictate these conditions. Specifically, they fail to measure:
 
-**Figure 6:** INR filter response to synthetic 10°C temperature step (simulating 1000 W/m² irradiance onset). Raw sensor (gray) exhibits 90-second rise time; INR-projected output (blue) achieves 95% response in 3 seconds with <5% overshoot.
+**Global Horizontal Irradiance (GHI):** The amount of solar energy reaching the ground per unit area.
+
+**Heat Flux:** The rate of thermal energy transfer through the environment.
+
+These are not merely abstract metrics; they are essential for practical applications. Solar radiation is the primary energy input for Earth's climate and a required variable for calculating evapotranspiration in agriculture.
+
+During the development of my project, FiaOS.org, this limitation became a practical obstacle. I attempted to implement the Penman-Monteith equation, the standard for estimating water evaporation, which relies on solar flux data. My initial hardware approach was mainly the output voltage of a solar panel and a Thermoelectric Generator (TEG) module. However, this setup proved unreliable. The TEG, due to its ceramic construction, showed high thermal inertia; it retained heat on its surface rather than providing the responsive data required. The physical disconnections between the sensors further complicated the readings.
+
+To resolve this, I realized the system could not rely on disjointed, reactive components. It required a cohesive, integrated approach. I returned to the Bosch™ BME280 as a baseline foundation. Its accuracy in measuring three physically connected parameters, Relative Humidity, Temperature, and Pressure, provides the necessary stability to build a more advanced, accumulative sensing package.
+
+**NOTE:** The BME280 measures absolute barometric pressure directly, avoiding errors associated with altitude-derived estimates.
+
+### Why, cheap sensors cannot reliably measure GHI and Heat Flux, even indirectly?
+
+#### 1.1. The Hardware Problem
+
+Traditionally, measuring solar radiation requires a thermopile pyranometer, an instrument governed by ISO 9060 standards. These devices work on a simple logic, they have a black absorbing surface and a white reference surface, and they measure the temperature difference between them. That temperature difference, via the "Seebeck effect", generates a tiny voltage proportional to the incident radiation.
+
+But there is a massive cost. For a research grade application or an invention could afford this, and it is recommended. A good pyranometer runs into hundreds or thousands of dollars. It requires careful mounting, cleaning, and calibration. It consumes power. It is fragile. We cannot scatter these things across a farm or embed them in consumer electronics. Such as all we identify as consumer devices. A pyranometer generally runs without power consumption. And it is solid. But when it comes to humanity's needs, it is clearly not the optimal choice, even if we eliminate the entire cost hurdles. Meanwhile, the BME280, the example sensor we take here, costs a few dollars, runs on a few microamps, and fits on a shell.
+
+#### 1.2. The Soft-Sensing Promise (And Its Failures)
+
+Today's response has been soft sensing, which means using algorithms to estimate what you cannot measure directly. The dominant approach uses machine learning.
+
+"Train a neural network on historical data where you have both the cheap sensor readings and the expensive pyranometer readings. Then deploy the neural network to estimate radiation from temperature and humidity alone."
+
+This approach has serious problems:
+
+While machine learning is a common approach for soft-sensing, it presents significant challenges for embedded, devices. First, neural networks trained in specific climates often fail to generalize to new environments. Second, the matrix multiplications required for inference consume excessive power on 8-bit microcontrollers. Finally, standard ML models often map instant inputs to outputs, ignoring the crucial temporal dynamics of how a sensor heats up over time.
+
+Most ML models map instant inputs to instant outputs.
+
+"Given that the temperature is 25°C and the humidity is 60% right now, what is the radiation right now?"
+
+But radiation changes on timescales of seconds like when clouds get to move, while temperature changes on timescales of minutes. This mismatch causes noticeable errors. And in specific applications like in LEO or SSO, this changing time may be even unmanageable, as magnitudes of higher dynamic environmental changes. (Further explained at the end of the document)
+
+**NOTE:** In the BME280, air pressure is not determined by the general formula of derivation, $p = \rho g h$ Instead, it uses the physical pressure applied on the sensor. This may apply to most general-purpose sensors.
+
+#### 1.3. The Differential Thermodynamic Approach
+
+**[Figure 1.3.1 - Placeholder for figure]**
+
+"Differential Temporal Derivative Soft-Sensing", abbreviated as DTDSS;
+
+This can be clarified as a single sensor cannot achieve thermal equality with the air (for temperature/humidity) and thermal disequilibrium with solar radiation (for its measurement). Therefore, sensing requires partitioning into two separate thermodynamic nodes.
+
+We utilize two identical sensors (we take BME280) placed in close physical proximity but in contrasting enclosures:
+
+The Reference node ($S_{ref}$): Housed in a ventilated, reflective shield. It remains in thermal equilibrium with the ambient air mass. (Figure 1.1.2)
+
+The Flux node ($S_{flux}$): Housed in a sealed, absorptive black-body enclosure. It acts as an energy trap, heating up in response to incoming radiation.
+
+By analyzing the real-time variation between these two nodes, specifically the temporal derivative of their temperature difference, we can mathematically reconstruct the incident radiation without the massive cost of a thermopile pyranometer.
+
+#### 1.4. The Preview
+
+**[Figure 1.4.1 - Pseudocode of the signal processing pathways]**
+
+To make this work robustly, we have developed a differential system with two processing paths:
+
+**The Reference Path (the Baseline):** Operates on the vented sensor. Uses psychrometric relationships and empirical meteorology to establish accurate baseline conditions. Provides true ambient temperature ($T_{ref}$), relative humidity, and pressure readings uncontaminated by solar heating.
+
+**The Reactive Path (Flux):** Operates on the black body sensor. Uses the temporal derivative of the temperature difference to detect and quantify radiative energy input.
+
+The Reference Path provides stability and ensures the system has accurate environmental context, preventing the "dry kiln" error where an enclosed sensor reports artificially low humidity due to their self-heating. The Reactive Path provides responsiveness and captures transient events like cloud breaks, measuring the actual energy flux hitting the sensor.
+
+Central to the Reactive Path is a novel signal processing technique; we call it Inertial Noise Reduction (INR). Taking derivatives of noisy signals is leading to future complications. INR is a novel solution for this problem. The Inertial Noise Reduction algorithm is a filter designed specifically for the thermodynamics of sensors.
+
+Finally, by using the BME280's pressure sensor to calculate air density in real time, the entire system becomes height isolated environment. Implement it at sea level or at 4000 meters higher, Regardless of earth location, the physics adapts automatically.
+
+Upcoming is the inner mechanism explained.
+
+## 2. The Thermodynamics of Humid Air, the Medium.
+
+Understanding the medium in which the sensor operates is important at first. The sensor is absorbed or fully immersed in the lower atmosphere, and the properties of that atmosphere directly govern how the heat goes between the sensor and nearby environment. Many engineering models treat air as a simple ideal gas with constants as values of properties, or they assume standard atmosphere conditions (sea level, 21°C, dry air, which are increasingly becoming very common for machine learning algorithms). These simplifications are acceptable for many applications. For a flux model intended for deployment anywhere on earth, these are risky and may lead to unpredictable outputs.*
+
+A main innovation of the DTDSS framework is the rejection of static assumptions in favor of dynamic, first principles derivation of air properties from the measured state variables, $pressure (P), temperature (T), and relative humidity (RH)$.
+
+### 2.1. The Role of Air density
+
+The density of the air, $\rho$, is the governing parameter for convective heat transfer. When the sensor is warmer than the surrounding air, heat flows from the sensor to the air via convection. The rate of this heat flow depends on the density of the fluid carrying the thermal energy to the outside environment.
+
+The practical implications include,**
+
+At sea surface level, air density is approximately $1.225 \, \text{kg/m}^3$.
+
+At 2000 meters elevated, air density drops to $1.00 \, \text{kg/m}^3$.
+
+At 4000 meters, it falls to about $0.82 \, \text{kg/m}^3$.
+
+If your model assumes sea level density but the sensor is at 4000 meters, you will overestimate the increasing cooling by roughly 50%. This means you will underestimate the solar radiation required to explain a given temperature rise by a similar amount. Your readings will be malfunctioned and irreversible, since we are filtering these inputs again(explained in the future).
+
+The BME280 provides $total  atmospheric pressure  P$, which is directly related to altitude. We can use this to calculate actual air density without needing a GPS or altitude lookup table.
+
+** Approximate values only.  
+\* Explained in page XI.
+
+### 2.2. The Ideal Gas Law for Moist Air
+
+The Atmosphere is not pure dry air. Mainly, it is a mixture of dry air and vaporized water, and these two components have different molecular weights and different gas constants.
+
+According to $Dalton's Law of Partial Pressures$, the total atmospheric pressure is the sum of the partial pressure of dry air ($P_d$) and the partial pressure of water vapor ($e$).
+
+$Dalton's\_Law\_of\_Partial\_Pressures$ assumption:
+
+$$P = P_d + e$$
+
+The density of moist air is the sum of the density contributions from each component. Applying the ideal gas law in specific form ($P = \rho R_{specific} T$):
+
+$$\rho_{moist} = \rho_d + \rho_v = \frac{P_d}{R_d T} + \frac{e}{R_v T}$$
+
+Where:
+
+$R_d = 287.058 \, \text{J} \cdot \text{kg}^{-1} \cdot \text{K}^{-1}$ - is the specific gas constant for dry air
+
+$R_v = 461.495 \, \text{J} \cdot \text{kg}^{-1} \cdot \text{K}^{-1}$ - is the specific gas constant for water vapor
+
+$T$ is in Kelvin grades.
+
+Substituting $P_d = P - e$ gives,
+
+$$\rho_{moist} = \frac{P - e}{R_d T} + \frac{e}{R_v T}$$
+
+For algorithmic implementation, we can factor this more precisely. Define the ratio of gas constants as
+
+$$\epsilon = \frac{R_d}{R_v} \approx 0.622$$
+
+$$\rho_{moist} = \frac{P}{R_d T} \left( 1 - \frac{e}{P} (1 - \epsilon) \right)$$
+
+Humid air is less dense than dry air at constant temperature and pressure due to the lower molecular weight of water vapor which is $18 g/mol$ compared to dry air ($~29 g/mol$).
+
+For our purpose, this means humid air is worse at carrying heat away from the sensor.
+
+By calculating $\rho_{moist}$ dynamically at every timestep, the soft sensor recalibrates itself its thermal model for the exact altitude and humidity conditions it experiences. This is a direct rejection of the "standard atmosphere" constraint.
+
+### 2.3. Derivation of Vapor Pressure Dynamic
+
+The partial pressure of water vapor, $e$, is not measured directly by the BME280. Hence, derive it from the relative humidity ($RH$) and the saturation vapor pressure ($e_s$).
+
+$$e = e_s(T) \cdot \frac{RH}{100}$$
+
+The saturation vapor pressure is the pressure at which water vapor would be in a balance with liquid water (not sterile water) at a given temperature. It is a strongly nonlinear function of temperature. This provides an accurate approximation of,
+
+$$e_s(T) = 6.112 \cdot \exp\left( \frac{17.67 \cdot (T - 273.15)}{T - 29.65} \right)$$
+
+Where $T$ is in Kelvin and $e_s$ is in hPa. This equation is robust for the temperature ranges encountered in typical monitoring -40°C to +50°C range. Though this is not a fixed range, these numbers may vary depending on the specific sensor, etc.
+
+### 2.4. The Specific Enthalpy of Moist Air
+
+The enthalpy of moist air is important for understanding the energy state of the atmosphere. Enthalpy represents the total energy content of the air parcel, combining sensible heat (what a normal thermometer measures) and latent heat (the energy stored in the phase of water, during the transition to vapor from water).
+
+The specific enthalpy of moist air (per unit mass of dry air) is:
+
+$$h = h_a + x \cdot h_v$$
+
+Where $x$ is the humidity mixing ratio (mass of water vapor per mass of dry, less humid air):
+
+$$x = \epsilon \frac{e}{P - e} = 0.622 \frac{e}{P - e}$$
+
+The individual enthalpy terms, approximated as linear functions of temperature $t$ (in Celsius):
+
+$h_a \approx 1.006 \, t$ (kJ/kg) , enthalpy of dry air
+
+$h_v \approx 2501 + 1.86 \, t$ (kJ/kg) , enthalpy of water vapor
+
+The number $2501 kJ/kg$ is the latent heat of vaporization of water at 0°C. This is a relatively massive energy reservoir. Evaporating one gram of water requires as much energy as heating that gram by 2501°C if such heating were possible in the liquid phase. The total specific enthalpy becomes:
+
+$$h = 1.006 \, t + x(2501 + 1.86 \, t)$$
+
+The impact of this is on soft sensing. A sensor measuring only temperature misses the latent energy component entirely.
+
+By assessing these two scenarios:
+
+**State A:** Temperature rises from 20°C to 25°C, humidity stays constant at 50%.
+
+**State B:** Temperature rises from 20°C to 25°C, humidity rises from 40% to 70%.
+
+A temperature only model would see these both as the same. But Scenario B shows a much larger change in total energy; all that extra water vapor carries latent heat. In the Differential System, the Reference Path tracks changes in enthalpy to identify between:
+
+**Advective heating,** which is warm, humid air moving in (both $T$ and $x$ change together)
+
+**Radiative heating:** Sunlight hitting the sensor (sensor heats up but the mixing ratio $x$ of the surrounding air does not immediately change)
+
+This distinction helps avoid false positives where we mistake weather fronts for solar events.
+
+### 2.5. Convective Heat Transfer Coefficient
+
+The link between sensor temperature and air temperature is the convective heat transfer coefficient, $h_c$. This parameter dictates the rate of heat flux for a given temperature difference:
+
+$$q_{conv} = h_c (T_s - T_{\infty})$$
+
+Where the case:
+
+$q_{conv}$ is the convective heat flux
+
+$T_s$ is the sensor temperature
+
+$T_{\infty}$ is the ambient air temperature
+
+For a small object like the BME280 package, LGA metal lid, approximately 2.5mm x 2.5mm x 0.9g, the flow regime is typically laminar at low wind speeds.
+
+The Nusselt number ($Nu$), the dimensionless general ratio relative to conductive heat transfer, relates $h_c$ to the thermal conductivity of air as:
+
+$$Nu = \frac{h_c \cdot L}{k_{air}}$$
+
+Empirical correlations for laminar flow over small objects suggest:
+
+$$Nu \propto Re^{1/2} \cdot Pr^{1/3}$$
+
+Where $Re$ is the Reynolds number and $Pr$ is the Prandtl number. Expanding this, we find the dependence of $h_c$ on air properties:
+
+$$h_c \propto k_{air} \left( \frac{\rho V}{\mu} \right)^{0.5}$$
+
+The point is, $h_c$ depends on $\rho^{0.5}$. Hence, the altitude correction is non-negotiable. As the sensor moves to higher heights, $\rho$ decreases, and thus $h_c$ decreases. The sensor becomes "better isolated" by the thinner, less humid air. If we did not account for this, the algorithm would interpret the higher temperature rise of the sensor (caused by poor cooling and less humidity) as an increase in solar radiation. We would report phantom solar events every time we took the sensor up a mountain.
+
+By driving the model with calculated $\rho_{moist}$, The DTDSS framework normalizes heat flux estimation against altitude variations. The sensor can be manufactured in a factory at sea level and deployed anywhere without firmware modification.
+
+## The Differential Architecture
+
+The central challenge in soft sensing is identifying between a hot day (high ambient temperature) and a sunny day (high radiative flux). A single sensor struggles to separate these signals. The differential System resolves this by treating the environment as a differential equation solved in hardware, By processing two concurrent telemetry streams from physically distinct sensor nodes.
+
+### 3.1. Pipeline A, The Reference Path
+
+Take our input as the Data from the Ventilated Sensor ( take this as $S_{ref}$) and Domain as Equilibrium Thermodynamics,,
+
+**Role:** This pipeline establishes the "Global Ground Truth" of the air mass. It provides the accurate $T_{ref}$, $RH$, and $P$ required for the biological or meteorological models. Crucially, because this sensor is shielded from solar coverage**, the humidity readings remain accurate and relevant to the surrounding atmosphere, preventing the error common in most enclosed sensors.
+
+**Baseline Temperature Estimation-** The Reference Node provides the true ambient temperature $T_{\infty} = T_{ref}$ without the need for estimation or filtering. This is a direct value we take from here.
+
+**Meteorological Context:** Use the relative humidity and pressure data to estimate cloud cover fraction, which provides a probabilistic baseline for expected solar radiation.
+
+#### The Cloud Proxy Model and The Kasten-Czeplak Adaptation
+
+A main component of the Reference Path is estimating solar radiation based on humidity. The physical reasoning is straightforward: high surface relative humidity correlates strongly with cloud formation and atmospheric opacity. When humidity is high, the atmosphere is closer to saturation, clouds are more likely to form, and less sunlight reaches the surface.
+
+The Kasten-Czeplak Model is a widely cited empirical relationship connecting Global Horizontal Irradiance ($G$) to cloud cover fraction ($N$, where 0 is clear sky and 1 is fully overcast):
+
+$$G = G_{cs} \cdot (1 - A \cdot N^B)$$
+
+Where:
+
+$G_{cs}$ is the theoretical clear-sky radiation (calculable from latitude, longitude, time of day, and day of year)
+
+$A = 0.75$ and $B = 3.4$ are the standard Kasten-Czeplak coefficients
+
+These coefficients imply that a fully overcast sky ($where N = 1$) allows ~1/4 of clear-sky radiation to penetrate ($1 - 0.75 = 0.25$).
+
+** Explained further in page XIII
+
+**The Problem:**
+
+"We do not have a sky camera or human observer to measure $N$. We need a proxy."
+
+**The Solution:** Derive a cloud proxy from relative humidity. Observational data suggests a power-law relationship between surface humidity and cloud fraction. A simplified proxy function suitable for embedded processing:
+
+$$N_{proxy} = \left( \frac{RH}{100} \right)^k$$
+
+Where $k$ is a tuning parameter (typically 1.5 to 2.0, depending on local climate). Integrating this into the Kasten Czeplak model gives the Reference Path's radiation estimate which is $G_{baseline}$.
+
+$$G_{baseline} = G_{cs} \cdot \left( 1 - 0.75 \cdot \left( \frac{RH}{100} \right)^{3.4k} \right)$$
+
+**Interpretation**
+
+"It is humid, therefore it is likely cloudy, therefore radiation is likely low."
+
+This equation provides a stable, slowly varying estimate of solar radiation. It is valid for time-averaged conditions. But it cannot detect if the sun is always shining through a space between the clouds(gaps). Detection requires the Reactive Path.
+
+### 3.2. Pipeline 2: The Reactive, Instantaneous Path
+
+**Input:** Data from the Black-Body Sensor ($S_{flux}$).
+
+**Domain:** Non-Equilibrium Dynamics.
+
+This sensor is allowed, and encouraged to overheat over hundreds of hours. We monitor the deviation of its temperature ($T_{flux}$) from the Reference Temperature ($T_{ref}$).
+
+If $T_{flux} \approx T_{ref}$, the sky is overcast or it is night.
+
+If $T_{flux} \gg T_{ref}$, energy is being harvested.
+
+The magnitude of this deviation, combined with the rate of change ($\frac{dT}{dt}$), enables to calculate the incoming energy flux using the Inertial Noise Reduction (INR) filter derived later in this paper.
+
+**Flux Detection:** Monitor the temporal derivative of the temperature difference to identify rapid heating events driven by radiative input.
+
+**Inertial Compensation:** Apply the INR to recover the magnitude of the flux without a delay, basically, in real-time. The Reactive Path leverages what is normally considered a defect of the sensor.
+
+**NOTE:** Standard datasheets warn that the BME280 can self-heat by 0.5°C to 2°C depending on sampling rate. Users are typically advised to minimize this effect or compensate for it. In the DTDSS framework, we embrace this thermal coupling for the Flux Node. We quantify it. We use it.
+
+If the Flux sensor heats up faster than the Reference sensor, the excess energy must come from an external source: solar radiation ($G$) or nearby heat flux ($q$).
+
+### 3.3. Comparison of Differential Pipeline Characteristics
+
+| Feature used | Accumulative path | Reactive Path Variations |
+|---|---|---|
+| Time Scale | Minutes to Hours | Seconds |
+| Physics Model | Equilibrium Thermodynamics | Non-Equilibrium Heat Transfer |
+| Key Equation | Kasten-Czeplak | Newton's Law of Cooling - Inverted. |
+| Primary Input | Relative Humidity ($RH$) | Temperature Derivative ($dT/dt$) |
+| Output | Baseline Radiation Probability | Instantaneous Flux Measurement |
+| Noise Sensitivity | Low because of heavy filtering and multiple layers of reduction and pruning | High (Requires INR) |
+| Failure Mode | Slow to produce low_quality reactions. | Sensitive to Noise, and immediately recognizable in malfunction(s).* |
+
+### 3.4. How the Pipelines Work Together
+
+The two pipelines are not independent. They interact in several main ways:
+
+**The Reference Path provides the baseline $T_{ref}$ for the Reactive Path.** The Reactive Path needs to know "how much warmer is the Flux sensor than the ambient air?" That ambient air temperature comes directly from the Reference sensor, It is clearly a measurement, not an estimate.
+
+**The Reference Path provides sanity bounds for the Reactive Path.** If the Reactive Path calculates an instantaneous radiation of 1500 W/m², (cases mentioned in Introduction pages) but the Reference Path's clear-sky model says the maximum possible is 900 W/m². Something is wrong. Either there is a measurement error, or there is an additional heat source beyond sunlight. The system can flag this anomaly.
+
+**The Reactive Path can update the Reference Path's cloud estimate(population of clouds within variable proximity).** If the Reactive Path detects a sharp increase in flux, and the Reference Path was predicting low radiation due to unpredictable high humidity, the Reference Path can revise its cloud proxy parameter $k$ to better match observed conditions. This shows how the reactive system controls and improves the internal accuracy, when we reverse engineer the concept "Rapid".
+
+**Common noise rejection.** Because both sensors experience the same wind, the same pressure changes, and the same air mass movements, many environmental noise sources affect both equally. When we compute the differential ($T_{flux} - T_{ref}$), these common-mode disturbances cancel out, leaving only the solar signal.
+
+This bidirectional feedback and differential structure makes the system self correcting and less error prone.
+
+## 4. Mathematical Derivation of Heat Flux via Thermal Inertia
+
+Here, converting the differential temperature signal into a heat flux measurement is the first step. The approach is to treat the Flux sensor package as a Lumped Capacitance System. This idea is valid when the Biot number ($Bi$), which compares internal thermal resistance to external convective resistance, is less than 0.1.
+
+For small MEMS packages like the sensor we are using here,this condition is easily satisfied. The implication: the temperature within the sensor is essentially uniform.***
+
+*** The selection of the BME280 sensor, a standard for general-purpose embedded devices due to its simplicity and wide availability, is purely for convenience. As noted in the introduction, the specific hardware model is not a critical factor.
+
+### 4.1. The Differential Energy Balance
+
+Applying the conservation of Energy to the Flux Node ($S_{flux}$). The driving force is no longer an estimated ambient temperature, but the measured temperature from the Reference Node ($S_{ref}$)
+
+$$E_{in} - E_{out} = E_{stored}$$
+
+Expanding each term:
+
+$E_{in}$ (Input Power): The sum of:
+
+Solar radiation absorbed: $\alpha G A_s$
+
+Electrical self-heating: $P_{elec}$
+
+$E_{out}$ (Cooling medium): Convective heat loss to ambient air: $h_c A_s (T_{flux} - T_{ref})$
+
+$E_{stored}$ (Thermal Inertia): Energy stored in the sensor mass, causing temperature increases to $m C_p \frac{dT_{flux}}{dt}$
+
+The resulting differential equation:
+
+$$ (\alpha G A_s + P_{elec}) - h_c A_s (T_{flux} - T_{ref}) = m C_p \frac{dT_{flux}}{dt} $$
+
+Let,
+
+$\alpha$- Solar absorptivity of the sensor package (typically 0.8–0.9 for black epoxy)
+
+$G$- Solar rad.
+
+$A_s$- Area for convection/radiation
+
+$T_{flux}$- Temperature of the black-body sensor(pre measured)
+
+$T_{ref}$-Measured temperature of the ventilated reference sensor (replacing the estimated $T_{\infty}$)
+
+$ (T_{flux} - T_{ref}) $- The measured thermal potential generated by radiation
+
+$m C_p$- Total heat capacity of the sensor (mass × specific heat)
+
+$h_c$- heat transfer coefficient
+
+And so, this substitution is valuable. In single sensor based systems, $T_{\infty}$ is a calculated guess, more likely to drift. In this differential system, $T_{\infty}$ is a live measurement. 7
+
+This eliminates the error where a sensor might make a mistake by taking a heatwave for sunlight.
+
+### 4.2. Solving for Solar Radiation
+
+Divide the entire equation by the convective term $h_c A_s$:
+
+$$\frac{\alpha G}{h_c} + \frac{P_{elec}}{h_c A_s} - (T_{flux} - T_{ref}) = \frac{m C_p}{h_c A_s} \frac{dT_{flux}}{dt}$$
+
+Define two characteristic parameters,
+
+**Thermal Time Constant ($\tau$):** The measure of thermal inertia.
+
+$$\tau = \frac{m C_p}{h_c A_s}$$
+
+This is the time it takes for the sensor to respond to a step change in conditions. (A typical value for a BME280 in still air might be approx. 10s to 60s.)
+
+**Self-Heating Offset ($T_{rise}$):** How much the sensor's temperature goes higher and stays there because of the heat produced by itself.
+
+$$T_{rise} = \frac{P_{elec}}{h_c A_s}$$
+
+Then, rearranging to isolate the solar term:
+
+$$\frac{\alpha G}{h_c} = (T_{flux} - T_{ref}) + \tau \frac{dT_{flux}}{dt} - T_{rise}$$
+
+We call this quantity the Sol Air Excess ($T_{sol}$):
+
+$$T_{sol} = (T_{flux} - T_{ref}) + \tau \frac{dT_{flux}}{dt} - T_{rise}$$
+
+Finally, solving for Solar Radiation:
+
+$$G = \frac{h_c}{\alpha} \left[ (T_{flux} - T_{ref}) + \tau \frac{dT_{flux}}{dt} - T_{rise} \right]$$
+
+### 4.3. Understanding the Equation
+
+This equation shows that Solar Radiation is proportional to two distinct things-
+
+**The temperature elevation::**
+
+$$(T_{flux} - T_{ref})$$
+
+This is how much warmer the Flux sensor is than the Reference.
+
+**The rate of change scaled by the time constant**
+
+$$\tau \frac{dT_{flux}}{dt}$$ How fast the Flux sensor is heating up.
+
+**Implementations**
+
+**Steady State:**
+
+$$ \frac{dT}{dt} = 0 $$
+
+When conditions are stable, the derivative term disappears. The measurement relies solely on the temperature difference between the two sensors. Both have reached equilibrium with their own environments, and the temperature difference indicates the radiation level.
+
+**Transient State:** $$ \frac{dT}{dt} > 0 $$
+
+When the sun just came out from behind a cloud, the Flux sensor has not yet reached its new equilibrium temperature. It is still heating up.
+
+The term $$ \tau \frac{dT}{dt} $$ represents the Inertial Correction, it accounts for the energy currently stored in sensor's mass but that has not yet appeared as a full temperature rise. Without the inertial correction, there is an underestimated radiation during heating events and overestimation during internal cooling stages.
+
+#### The Newton's Law of Cooling
+
+The term $$ (T_{flux} - T_{ref}) $$ represents the driving force for cooling, governed by Newton's Law of Cooling. The inclusion of the derivative term inverts Newton's Law.
+
+**Newton's Law:**
+
+"The rate of cooling is proportional to the temperature difference."
+
+Mathematically,
+
+$$ \frac{dT_{flux}}{dt} = -\frac{1}{\tau}(T_{flux} - T_{ref}) + \frac{G_{absorbed}}{\tau} $$
+
+Our equation rearranges this to solve for the absorbed flux:
+
+$$ G_{absorbed} = (T_{flux} - T_{ref}) + \tau \frac{dT_{flux}}{dt} $$
+
+Measuring how fast the Flux sensor is heating up, and knowing how fast it should be cooling (based on $$ T_{flux} - T_{ref} $$), the difference is the magnitude of the external forcing.
+
+**Altitude Doubt**
+
+Because $$ h_c $$ depends on $$ \rho $$ (as derived in part 2.5), and $$ \rho $$ is calculated from local pressure $$ P $$, this entire derivation is independent from height.
+
+At high altitudes:
+
+$$ \rho $$ drops because of thinner air - Explanation - "thinner air" is subjective. There is no specific threshold.
+
+$$ h_c $$ drops because of less efficient convection.
+
+$$ \tau $$ increases because the sensor responds slower.
+
+$$ (T_{flux} - T_{ref}) $$ increases for the same radiation as the sensor gets hotter because it cannot cool as effectively.
+
+The formula compensates for all of these effects automatically because $$ \rho $$ is a live variable in the system. The sensor identifies where it is through the value of pressure reading.
+
+## Inertial Noise Reduction (INR) or Signal Processing for the Reactive Path
+
+The theoretical derivation in Section 4 relies on the instantaneous derivative $$ \frac{dT_{flux}}{dt} $$. In the real world of digital sampling, taking a derivative is a hazardous operation.
+
+### The Noise
+
+Examine the practical reality:
+
+The BME280 has a temperature resolution of approximately 0.01°C.
+
+The sensor exhibits quantization noise (bit-flip errors) at this resolution.
+
+The sampling interval might be 1 second.
+
+A single bit flip of 0.01°C over 1 second produces a well calculated derivative of 0.01°C/s. If the thermal time constant $$ \tau $$ is 30 seconds, this noise spike gets multiplied by 30, producing a temperature of 0.3°C. Depending on the system's calibration, this could be interpreted as a radiation change of tens of W/m².
+
+The noise amplification scales inversely with the sampling interval $$ \text{Noise}_{derivative} \propto \frac{\text{Noise}_{sensor}}{\Delta t} $$
+
+Sample faster, and the noise gets worse. Sample slower, and you miss temporary event happenings.
+
+### Why Standard Filters Fail
+
+The obvious solution is filtering. Smooth the temperature signal before differentiating. But standard filters introduce a noticeable delay. A Simple Moving Average with a case of 10 samples delays the signal by 5 samples. A Low-Pass Butterworth filter introduces frequency-dependent delay.
+
+This delay is fatal for our application. If the temperature derivative is delayed relative to the temperature value, the two terms in our flux equation become decoupled. We are adding apples and oranges. The physical relationship we derived assumes simultaneous measurements.
+
+What we need is a filter that is,
+
+Suppresses high-frequency noise
+
+Preserves the phase relationship between the signal and its derivative
+
+Is computationally cheap enough for embedded systems
+
+### The INR Filter Concept
+
+The Inertial Noise Reduction (INR) filter is a proposed solution. It is a signal processing filter designed to model physical inertia digitally inside the domain.
+
+The sensor itself is already acting as a physical filter. The thermal mass smooths out rapid changes in radiation. A 10 second burst of sunlight through a cloud gap barely registers because the sensor had time to heat up.
+
+INR works in two different stages.
+
+#### Adaptive Smoothing or Stage 01
+
+Adaptive smoothing is about using an IIR filter based on the Exponential Moving Average (EMA)
+
+$$ T_{filt}[n] = \alpha \cdot T_{raw}[n] + (1 - \alpha) \cdot T_{filt}[n-1] $$
+
+Where, $$ \alpha $$ is the smoothing factor (0 < $$ \alpha $$ ≤ 1):
+
+Low $$ \alpha $$: High inertia, heavy filtering, slow response
+
+High $$ \alpha $$: Low inertia, light filtering, fast response
+
+The innovation of INR is making $$ \alpha $$ adaptive.
+
+Next, adjusting the filter's predicted mass based on the jerk of the signal
+
+$$ \Delta[n] = |T_{raw}[n] - T_{filt}[n-1]| $$
+
+$$ \alpha[n] = \text{clamp}(k \cdot \Delta[n], \alpha_{min}, \alpha_{max}) $$
+
+Where $$ k $$ is a sensitivity gain parameter.
+
+**Steady state (signal changing slowly):** Variations are likely noise. Decrease $$ \alpha $$ (increase inertia) to lock the value.
+
+**Transient event (sustained unidirectional change):** This represents a physical forcing event. Increase $$ \alpha $$ (decrease inertia) to track the edge accurately.
+
+#### Inertial Projection - Stage 2
+
+After smoothing, we compute a projected temperature that compensates for the sensor's thermal -lag:
+
+$$ T_{proj}[n] = T_{filt}[n] + \tau \cdot \left( \frac{dT_{filt}}{dt} \right)[n] $$
+
+This projected temperature represents what the sensor temperature would be if the sensor had zero thermal mass, an instant response to radiation changes. When the sun comes out, $$ T_{proj} $$ spikes immediately toward the final equilibrium temperature, while $$ T_{filt} $$ slowly climbs to meet it. The difference between them during the transient represents the inertial energy being stored.
+
+#### Computing the Derivative.
+
+For the derivative $$ \frac{dT_{filt}}{dt} $$, a simple finite difference $$ \frac{T[n] - T[n-1]}{\Delta t} $$ includes massive noise, even after adaptive smoothing. A more robust approach is the Savitzky-Golay filter (or least-squares slope estimator).
+
+This technique fits a low-degree polynomial to a sliding window of data points (e.g., the last 5–10 samples) and calculates the derivative of that polynomial analytically at the center point.
+
+For embedded systems with limited resources, a simplified version uses the Central Difference.
+
+Derivative:
+
+$$ \left(\frac{dT}{dt}\right)[n] = \frac{T_{filt}[n+1] - T_{filt}[n-1]}{2 \Delta t} $$
+
+This requires only a small buffer and so, small computation.
+
+### INR and Kalman Filtering, The drawbacks and why choose INR?
+
+Kalman filters are theoretically greater for linear systems with general noise. But they have practical disadvantages for our application.
+
+**Computational Cost,** Kalman filters require matrix operations (prediction and update steps involve matrix inversion or multiplication). On 8-bit microcontrollers without floating-point units, this is intense.
+
+**Tuning Difficulty:** Correct operation requires setting the process noise ($$ Q $$) and measurement noise ($$ R $$) correlated matrices. Without ground truth data, this tuning is difficult.
+
+**Model Assumptions:** Standard Kalman assumes a linear, state space model. Our system has nonlinear elements (the adaptive filtering, the density dependent heat transfer).
+
+The INR filter, by comparison:
+
+Requires only scalar arithmetic (add, subtract, bit-shift)
+
+Is O(1) in time complexity and O(1) in space complexity
+
+Achieves performance comparable to a 1D steady-state Kalman for thermal decay profiles
+
+Is specifically optimized for the physics of sensor packages
+
+INR, while simple, wins here in many aspects because of its algorithmic complexity and gives processors less cache when it comes to embedded data processing in applications such as non-negotiable compute for smaller time units per runtime.
+
+### The INR Algorithm (Overall summarized Version)
+
+Sequentially, for each new $$ T_{raw}[n] $$,
+
+**Compute deviation from previous filtered value**
+
+$$ \Delta = |T_{raw}[n] - T_{filt}[n-1]| $$
+
+**Adjust smoothing factor**
+
+$$ \alpha = \text{clamp}(k \cdot \Delta, \alpha_{min}, \alpha_{max}) $$
+
+**Apply adaptive EMA**
+
+$$ T_{filt}[n] = \alpha \cdot T_{raw}[n] + (1 - \alpha) \cdot T_{filt}[n-1] $$
+
+**Store in a circular buffer for derivative calculation.**
+
+**Compute derivative via central difference or Savitzky-Golay:**
+
+$$ dT\_dt = \text{derivative}(\text{buffer}) $$
+
+**Compute projected temperature:**
+
+$$ T_{proj}[n] = T_{filt}[n] + \tau \cdot dT\_dt $$
+
+**Compute solar radiation estimate:**
+
+$$ G = (h_c / \alpha_{solar}) \cdot (T_{proj}[n] - T_{ref} - T_{rise}) $$
+
+## The Wind and Its Practical Boundary Conditions
+
+A critical factor not yet explored is the wind. Introducing this variable requires new assumptions and provides new insights.
+
+**[Figure 1.6.1 - Placeholder for figure]**
+
+### Convective Heat Transfer Dynamics
+
+First, Wind speed is not background noise, it is a fundamental variable in environmental intelligence because it directly controls the convective heat transfer coefficient ($h_c$). As we can see in Figure 1.1.1, wind oscillations directly interfere with heat.
+
+The assumption that heat flux has nothing to do with wind speed is incorrect. In forced wind, $h_c$ can be 5 to 10 times higher than in natural air.
+
+If the wind suddenly picks up, $h_c$ increases, and both sensors cool down rapidly, and unpredictably.
+
+### Differential Cancellation
+
+This sensitivity is exactly why differential architecture is so valuable. "Common mode" disturbances, like a sudden gust of wind, affect both the Flux sensor ($T_{flux}$) and the Reference sensor ($T_{ref}$) in a similar way. When we calculate the difference, much of that wind-induced temperature change subtracts out, leaving the solar signal relatively clean.
+
+However, the cancellation isn't perfect. Differences in the housing geometry mean the ventilated Reference housing might react to the wind slightly differently than the sealed Flux housing.
+
+### The Proximity Correlation Hypothesis
+
+To handle these variances, we rely on a concept we observed during practical testing: the spatial uniformity of airflow.
+
+In Figure 1.1.1, it introduces something useful. The wind speed at the sensor's immediate location was approximately equivalent to the wind moving the distant buildings/objects, which were located more than 1,000 meters away. This practical experiment led me to the Proximity Correlation Hypothesis.
+
+In open environments, wind speed isn't just a local point measurement; it correlates reasonably well with the general area.
+
+This makes physical sense. Wind is driven by large-scale pressure gradients. Unless there are specific local obstacles, like a wall or a building, the wind hitting your sensor is likely very similar to the wind 500 meters or a kilometer away.
+
+### FiaOS** and Cloud Integration
+
+Because of this natural uniformity, we can connect the FiaOS** system to cloud data. Since the local wind speed is approximately equivalent to the regional wind speed (measured in kilometers), we don't necessarily need a dedicated anemometer on every device. It is natural and conventional to think in this way: if we know the regional wind, we can estimate the local convective cooling.
+
+### Limitations: Why this Fails Indoors
+
+This framework allows anyone to estimate heat flux and solar radiation in uniform natural environments as deserts, mountains, riversides, and urban cityscapes.
+
+However, for home or indoor use, this framework must be waived. The indoor environment completely violates the "Proximity Correlation." An air conditioner or a greenhouse creates a microclimate where the air movement has zero correlation to the wind outside. Inside a house, the air might be still, while outside it is storming, or vice versa. Therefore, the "general proximity" assumption only holds true for the outdoors.
+
+We can also use cloud based weather data (from trusted weather APIs) to estimate the local wind speed and adjust $$ h_c $$ accordingly for residual correction after differential cancellation.
+
+** www.fiaos.org/about, The term FiaOS is employed as a sample project, serving as a model system for clarifying the use cases and applications detailed within this document. It may be regarded as a provisional placeholder.
+
+### Limitations and Scope
+
+This approach has clear limitations:
+
+**Works well for:**
+
+Open outdoor environments (deserts, fields, mountains, riversides)
+
+Urban areas with relatively equal building heights
+
+Locations where further micro climates are minimal
+
+**Fails for:**
+
+Greenhouses
+
+Locations with highly diverse or variable local obstacles
+
+For indoor applications, the wind correlation must be disabled or replaced with a different model. The DTDSS framework is primarily designed for outdoor environmental monitoring where the Correlation Hypothesis(taking the general proximity) assumption holds.
+
+### The Dual compartment enclosure
+
+To physically implement the differential model, a dual compartment design is optimal for several reasons.. The goal is to ensure both sensors experience the exact same wind and pressure conditions, differing only in their exposure to light.
+
+**Compartment A (The Reference)**
+
+A fully enclosed, white, or reflective cylinder. It allows free air circulation but blocks direct line-of-sight to the sky. This ensures $$ S_{ref} $$ remains at true air temperature. Although this is a standard practice, taken for preserving the longevity and the accuracy of the sensors/systems in many applications.
+
+**Compartment - B (Flux)**
+
+Topped with a transmissive, transparent material (generally, glass or polyethene) and backed by a black surface. The dome blocks wind but transmits solar radiation. The black housing absorbs the radiation and heats up predictably. This ensures $$ S_{flux} $$ maximizes absorption. This should be closed, ventilated too.
+
+And the thermal mass of the two sensors should be identical. This symmetry ensures that "common mode noise", such as a sudden gust of cold wind, affects both sensors equally. When we subtract $$ T_{ref} $$ from $$ T_{flux} $$, the wind noise cancels out, leaving only the solar signal.
+
+The two compartments should be mounted in close physical proximity (on the same bracket or PCB assembly) to ensure they experience the same meteorological conditions.
+
+### A Note on Non-Terrestrial Applications
+
+Applying this in Low Earth Orbit (LEO) or Sun Synchronous Orbit - SSO, the challenges would exponent and compound. In a vacuum, thermal cycling between sunlight and eclipse happens every 90 minutes, with temperature swings of hundreds of degrees.
+
+There is no air for convection, and environmental rates of change are magnitudes higher, necessitating hardware like pyranometers rather than the soft-sensor approximations used in here. As we need precision over the amount of cost.
+
+## 7. Calibration and Deployment
+
+### 7.1. The Fundamentally Essential Parameters in the System
+
+The accuracy of the DTDSS system depends on knowing several parameters:
+
+| Parameter | Symbol | Typical Value | How to Determine |
+|---|---|---|---|
+| Thermal time constant | $\tau$ | 10 to 60 seconds | Auto calibration routine |
+| Solar absorptivity | $\alpha$ | 0.85 to 0.95 | Literature value for housing material |
+| Surface area | $A_s$ | ~50 mm² | Geometry measurement |
+| Heat capacity | $m C_p$ | ~1 J/K | Calculation measurement |
+| Self-heating rise | $T_{rise}$ | 0.5–2.0°C | Measures in dark and still conditions |
+
+### 7.2. Auto Calibration of the Thermal Time Constant
+
+The thermal time constant $\tau$ is the most prominent parameter and the most likely to vary between applying(this is depending on housing, mounting, and local conditions).
+
+Fortunately, $\tau$ can be determined automatically via a step response test:
+
+Wait for a natural "step down" event (sunset, or sudden shading).
+
+Record the temperature decay curve of the Flux sensor.
+
+Fit an exponential: $T(t) = T_{final} + (T_{start} - T_{final}) \cdot e^{-t/\tau}$.
+
+Extract $\tau$ from the fit.
+
+For embedded systems, a simplified approach:
+
+Identify when $\frac{dT}{dt}$ becomes consistently negative (cooling started).
+
+Measure the time to reach 63% of the total temperature drop (this is $\tau$ by definition of the exponential time constant).
+
+The system can update $\tau$ periodically (weekly or monthly) to account for:
+
+Dust accumulation on the housing.
+
+Changes in ventilation.
+
+Seasonal changes in typical wind speed.
+
+### 7.3. Self-Heating Characterization
+
+The self-heating term $T_{rise}$ depends on:
+
+Sensor sampling rate (higher rate = more power dissipation).
+
+Ambient convection conditions.
+
+To measure it:
+
+Place both sensors in a dark, controlled environment (no solar radiation).
+
+Shield from significant air movement.
+
+Allow the system to reach thermal equilibrium.
+
+Compare the difference between Flux and Reference sensors.
+
+The residual difference (after accounting for any housing differences) is the self-heating offset. Repeat at different sampling rates to create a correction table.
+
+### 7.4. Altitude Rejection
+
+By implementing the density equations from Section 2 in firmware, as discussed in the past, as well as in the introduction, the sensor automatically adapts to altitude.
+
+**Example:**
+
+Deployment: Weather Balloon flying approx. 2000m above the Knuckles Range
+
+Measured pressure: $P = 600$ hPa.
+
+Calculated density: $\rho \approx 0.7$ kg/m³ (vs. 1.2 kg/m³ at sea level).
+
+Algorithm behavior: Reduces expected $h_c$ by ~40%. Expects the sensor to get hotter for a given W/m².
+
+Result: When the Flux sensor reports a high $\Delta T$ relative to Reference, the system correctly attributes it to normal solar levels, not a heat wave.
+
+External firmware modifications, GPS or hardcoded changes will not be needed.
+
+## 8. Implementation on Constrained Hardware
+
+These algorithms are designed for Class-0 IoT devices, microcontrollers with severe resource constraints like 8 Bit AVR, ARM0[zero], etc.
+
+### 8.1. Fixed-Point Arithmetic
+
+While the algorithm is mathematically suitable for fixed-point optimization on 8-bit architectures, the reference implementation provided here utilizes floating-point arithmetic to maintain precision and code clarity on modern 32-bit IoT controllers (ESP32, ARM Cortex). Fixed-point variants replacing float operations with integer multiply-shift operations can provide performance gains on legacy 8-bit MCUs if needed.
+
+Example: Enthalpy calculation
+
+Instead of:
+
+```c
+float h = 1.006 * T; // Floating-point multiply
+```
+
+Use scaled integers (Q10.6 format):
+
+Here, 1.006 ≈ 1030/1024 = 1030 >> 10
+
+```c
+int32_t h_dry = (1030 * T_raw) >> 10; // Integer multiply + shift
+```
+
+This replaces a floating-point multiplication with an integer multiply and bit-shift.
+
+For an Example, INR filter
+
+If $\alpha = 0.125 = 1/8$:
+
+```c
+// output = α * input + (1-α) * output
+// output += (input - output) * α
+
+output += (input - output) >> 3; // Single shift, no division
+```
+
+### 8.2. Memory Footprint
+
+The Differential Architecture requires minimal state retention:
+
+**Reactive Path State per sensor:**
+
+Current temperature: 2 bytes.
+
+Previous temperature: 2 bytes.
+
+Previous derivative: 2 bytes.
+
+Alpha value: 2 bytes.
+
+Circular buffer (5 samples): 10 bytes.
+
+Total per sensor: ~18 bytes.
+
+**Reference Path State:**
+
+Min temperature (1-hour window): 2 bytes.
+
+Max temperature (1-hour window): 2 bytes.
+
+Hourly humidity average: 2 bytes.
+
+Accumulated enthalpy change: 4 bytes.
+
+Window counters: 4 bytes.
+
+Total: ~14 bytes.
+
+Overall, Less than 60 bytes of RAM for core algorithm state (for onboard, both sensors). This negligible footprint allows the algorithm to run alongside networking stacks without causing memory pressure.
+
+### 8.3. Computational Complexity and Time Complexity
+
+Comparing approaches:
+
+**TinyML (Neural Network):**
+
+Requires storing weights for every neuron.
+
+A small 3-layer 10-20 to 1 network needs approximately 200 float weights.
+
+Inference involves matrix dot products: $O(N^2)$ complexity.
+
+Typical inference time: 10 to 100 ms on Cortex M0.
+
+**DTDSS (Physics-Based):**
+
+Constants stored in flash: ~100 bytes.
+
+O(1) Complexity
+
+Typical execution time: <1 ms on 8-bit AVR.
+
+The physics-based approach is many times more efficient in both memory and computation.
+
+## 9. Validation and Expected Performance
+
+**[Figure 1.9.1 - Placeholder for figure]**
+
+### 9.1. What We Can Measure
+
+Direct validation of radiation accuracy using ground truth is currently impossible due to the absence of a collocated pyranometer. Although a planned experiment for a later version of this preprint will address this, we must, until then, employ alternative methods to validate our -virtual concept. We can, however, assess the system's behavior using several indirect validation techniques.
+
+**Self-Consistency Checks:**
+
+Does the Reactive Path output correlate with known solar geometry? (Higher at noon, zero at night).
+
+Do the two paths converge to similar values during stable conditions?
+
+**Cross-Deployment Comparison:**
+
+Deploy identical sensor pairs at different altitudes.
+
+Verify that altitude-corrected readings are similar for similar conditions.
+
+Confirm that uncorrected readings show the expected systematic bias.
+
+**Differential Integrity Check:**
+
+Verify that $T_{flux} \geq T_{ref}$ during daylight hours.
+
+Verify that $T_{flux} \approx T_{ref}$ at night and during heavy overcast.
+
+Check that the differential signal has lower noise than either raw signal.
+
+### 9.2. Expected Accuracy
+
+Based on the physics and typical sensor specifications:
+
+**Systematic Errors (can be measured out):**
+
+Self-heating bias: Largely cancelled by differential measurement.
+
+Absorptivity uncertainty: ±5% → ±5% radiation error.
+
+Time constant uncertainty: ±20% → ±20% error during transients only.
+
+**Random Error from Possible Noise**
+
+Temperature resolution: 0.01°C per sensor.
+
+Differential noise: ~0.014°C (root-sum-square of two sensors).
+
+After INR filtering: ~0.007°C effective differential.
+
+Corresponding radiation noise: ~15–25 W/m² RMS.
+
+**Overall Expected Performance:**
+
+Steady-state accuracy: ±10% of actual radiation (after calibration).
+
+Transient response: Detects cloud breaks within 5–10 seconds.
+
+Altitude range: Sea level to 5000m without modification.
+
+Common-mode rejection: Wind-induced errors reduced by ~80% compared to single-sensor approach.
+
+This is not pyranometer grade accuracy. But it is far better than having no radiation data at all, and it comes at a fraction of the cost, approximately $6 for two BME280 sensors versus $600+ for a research grade pyranometer.
+
+While direct side-by-side validation with a reference pyranometer is planned for future work, this section establishes the theoretical bounds and simulation performance of the framework
+
+### 9.3. Limitations and Failure Modes
+
+**Night-time:** The algorithm relies on solar heating differential. At night, both sensors equilibrate, and the system outputs zero (appoximate). No useful flux information available.
+
+**Overcast conditions:** When the sun is behind continuous clouds, the signal-to-noise ratio drops. The Reference Path dominates; the Reactive Path becomes noisy.
+
+**Asymmetric wind exposure:** If housing designs cause different wind responses, residual errors remain after differential cancellation.
+
+**Condensation/frost:** If moisture condenses on the Flux sensor dome but not the Reference housing, the thermal properties diverge. Readings become unreliable until the sensor dries.
+
+**Infrared radiation:** The model neglects long-wave infrared exchange (thermal radiation from sky and surroundings), Introduces new errors when sensor temperature differs significantly from sky temperature.
+
+**Failure Mode Recovery:**
+
+Sanity checks: If calculated radiation exceeds clear-sky maximum by >20%, flag as error.
+
+Consistency checks: If Reactive Path and Reference Path disagree by >50% during stable conditions, trigger recalibration.
+
+Differential sanity: If $T_{flux} < T_{ref}$ during daylight, flag sensor malfunction.
+
+Range limiting: Clamp outputs to physically plausible values (0 to ~1400 W/m²)
+
+## 10. Future Directions
+
+### 10.1. Multi-Sensor Fusion
+
+The current framework uses a two BME280 sensors.
+
+Future versions could extend the same differential concept:
+
+Multiple Flux nodes with different surfaces (black coatings) to break down the light's color spectrum
+
+An accelerometer can notice if the sensor is moving or shaking (like an outdoor sensor swaying in the wind)
+
+A photodiode can offer a rough check on the sunlight (if it's sunny or cloudy)**
+
+### 10.2. Machine Learning Augmentation
+
+While pure-ML approaches aren't ideal as disclosed before, The role for ML in a hybrid system is:
+
+Use physics-based differential model as the primary estimator
+
+Train a lightweight ML model to predict model residuals (errors)
+
+Apply residual correction when ML model is confident
+
+This gets the robustness of physics with the adaptability of ML.
+
+### 10.3. Networked Calibration
+
+With many DTDSS sensor pairs deployed in a region:
+
+Sensors can share calibration data
+
+Statistical outlier detection identifies malfunctioning units
+
+Ensemble averaging reduces noise
+
+Spatial correlation enables short-term forecasting
+
+### 10.4. Infrared Extension
+
+This requires additional computational complexity but could improve accuracy by 20–30%.
+
+Estimate sky temperature from humidity and cloud cover
+
+Model net radiative exchange (solar in minus thermal out)
+
+Account for reflected radiation from ground surface
+
+** To show that we can figure out the sun's energy using common sensors, we will later separate the light we can see from the heat.
+
+### 10.5. Scaling the Differential Principle
+
+The differential architecture presented here uses two sensors. But the principle scales:
+
+4 Sensors: Solar + Temp + Wind Direction by various differences across arrays.
+
+N Sensors: A larger area for a building which measures micro climates within it.
+
+This provides the concept of "Accumulative" sensing. We are accumulating thermal potential between controlled reference points rather than reacting to a single noisy measurement.
+
+## 11. Conclusion
+
+"Can DDDS + INS extract meaningful solar radiation information from general purpose environmental sensors?"
+
+The DTSS framework changes common IoT components into a sensing array, greater -than the sum of its parts. By changing the perspective from a single-point measurement to a differential, topology based structure, we separate the measurement of the medium from the measurement of the energy.
+
+A single sensor cannot parallely or simultaneously be in thermal equilibrium with the air and in thermal disequilibrium with the sun. By using two sensors, one shielded Reference node and one exposed to the other flux node, It measures both states directly rather than trying to estimate one from the other.
+
+The Inertial Noise Reduction filter makes differentiation more practical. It preserves the phase information we need while reducing the quantization artifacts that would make the signals error-prone or noisy.
+
+And by calculating air density from pressure in real-time, the system becomes independent; which means, deployable from sea level to mountaintops without reconfiguration.
+
+"Is this a replacement for a precision, industry grade pyranometer? "
+
+No. The accuracy is lower, the noise is higher, and there are environmental conditions where the approach fails.
+
+This approach is not limited to the BME280. It is a foundational architectural system applicable to any number of embedded sensor(s) as well.
+
+A physics-based differential approach like DTDSS offers advantages in such scenarios:
+
+No training data required from the specific orbital environment
+
+Algorithms adapt automatically to changing conditions via first-principles physics
+
+Computational simplicity enables real-time processing on radiation-hardened, power-constrained processors
+
+The differential architecture provides inherent redundancy and fault detection
+
+The framework system presented here, while developed for terrestrial applications, establishes foundational principles applicable to extreme environments where traditional sensing approaches become impractical or impossible.
+
+## References
+
+[1] Agriculture & Evapotranspiration (Penman-Monteith) R. G. Allen, L. S. Pereira, D. Raes, and M. Smith, "Crop evapotranspiration - Guidelines for computing crop water requirements - FAO Irrigation and drainage paper 56," FAO, Rome, vol. 300, no. 9, p. D05109, 1998. Context: Establishes the standard for why solar radiation is critical for calculating water requirements.
+
+[2] Pyranometer Standards "ISO 9060:2018 Solar energy -- Specification and classification of instruments for measuring hemispherical solar and direct solar radiation," International Organization for Standardization, Geneva, Switzerland, 2018. [Online]. Available: https://www.iso.org/standard/67464.html Context: Defines the "Hardware Problem" and the cost/complexity of standard instruments.
+
+[3] Soft Sensing & Algorithms L. Fortuna, S. Graziani, A. Rizzo, and M. G. Xibilia, "Soft sensors for monitoring and control of industrial processes," Springer Advances in Industrial Control, 2007. DOI: 10.1007/978-1-84628-480-9. Context: Validates the concept of using software to estimate unmeasured physical variables.
+
+[4] Vapor Pressure Physics (Magnus Formula) O. A. Alduchov and R. E. Eskridge, "Improved Magnus form approximation of saturation vapor pressure," Journal of Applied Meteorology, vol. 35, no. 4, pp. 601–609, 1996. DOI: 10.1175/1520-0450(1996)035<0601:IMFAOS>2.0.CO;2 Context: Source for the specific constants (17.67, 243.5) used in your humidity calculations.
+
+[5] Signal Processing (Differentiation) A. Savitzky and M. J. E. Golay, "Smoothing and differentiation of data by simplified least squares procedures," Analytical Chemistry, vol. 36, no. 8, pp. 1627–1639, 1964. DOI: 10.1021/ac60214a047. Context: The foundational mathematical basis for the Inertial Noise Reduction (INR) approach to taking derivatives.
+
+[6] Heat Transfer & Convection F. P. Incropera, D. P. DeWitt, T. L. Bergman, and A. S. Lavine, Fundamentals of Heat and Mass Transfer, 6th ed. John Wiley & Sons, 2007. ISBN: 978-0471457282. Context: The authoritative source for Nusselt, Reynolds, and Prandtl number correlations used in Section 2.5.
+
+[7] Cloud Modeling (Kasten-Czeplak) F. Kasten and G. Czeplak, "Solar and terrestrial radiation dependent on the amount and type of cloud," Solar Energy, vol. 18, no. 3, pp. 177–181, 1976. DOI: 10.1016/0038-092X(76)90043-6. Context: The empirical model used in your Reference Path to estimate baseline radiation from humidity.
+
+[8] Sensor Hardware Bosch Sensortec, "BME280: Combined humidity and pressure sensor datasheet," version 1.1, 2016. [Online]. Available: https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bme280-ds002.pdf Context: Validation of the sensor resolution (0.01°C) and pressure capabilities.
+
+[9] Differential Sensing Concept Z. Samani, "Estimating solar radiation from temperature differences," Journal of Irrigation and Drainage Engineering, vol. 126, no. 4, pp. 265–267, 2000. DOI: 10.1061/(ASCE)0733-9437(2000)126:4(265). Context: Academic precedent for using temperature differentials to approximate solar flux.
