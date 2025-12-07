@@ -15,7 +15,7 @@ namespace FiaPhy {
 class INRFilter {
 public:
     INRFilter(float alpha_min = 0.05f, float alpha_max = 0.8f, float sensitivity = 2.0f) 
-        : alpha_min_(alpha_min), alpha_max_(alpha_max), sensitivity_(sensitivity) {
+        : alpha_min_(alpha_min), alpha_max_(alpha_max), sensitivity_(sensitivity), sample_dt_(1.0f) {
         state_.filtered_value = 0;
         state_.previous_filtered = 0;
         state_.derivative = 0;
@@ -31,7 +31,9 @@ public:
     }
     
     // Apply adaptive EMA filter to raw input
-    float update(float raw_value) {
+    // dt: time since last sample in seconds (default 1.0s)
+    float update(float raw_value, float dt = 1.0f) {
+        sample_dt_ = dt;
         if(!initialized_) {
             state_.filtered_value = raw_value;
             state_.previous_filtered = raw_value;
@@ -103,12 +105,12 @@ private:
     float alpha_min_;
     float alpha_max_;
     float sensitivity_;
+    float sample_dt_;
     bool initialized_;
     
     // Central difference derivative: (T[n+1] - T[n-1]) / (2 * dt)
+    // Uses actual sample interval instead of hardcoded timing
     float computeDerivative() {
-        constexpr float SAMPLE_INTERVAL_S = 1.0f;
-        
         uint8_t idx_current = (state_.buffer_index + INRState::BUFFER_SIZE - 1) % INRState::BUFFER_SIZE;
         uint8_t idx_prev = (idx_current + INRState::BUFFER_SIZE - 2) % INRState::BUFFER_SIZE;
         uint8_t idx_next = idx_current;
@@ -116,7 +118,7 @@ private:
         float T_prev = state_.circular_buffer[idx_prev];
         float T_next = state_.circular_buffer[idx_next];
         
-        return (T_next - T_prev) / (2.0f * SAMPLE_INTERVAL_S);
+        return (T_next - T_prev) / (2.0f * sample_dt_);
     }
 };
 

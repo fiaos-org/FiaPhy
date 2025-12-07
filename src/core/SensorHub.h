@@ -260,7 +260,39 @@ public:
     }
     
     /**
+     * @brief Retrieve synchronized sensor pair (Reference + Flux)
+     * @return DifferentialFrame containing both sensors for DTDSS algorithm
+     */
+    DifferentialFrame getDifferentialFrame() {
+        DifferentialFrame result;
+        
+        if (!frame_ready) {
+            Logger::warn("getDifferentialFrame() called before frame ready");
+            return result; 
+        }
+        
+        // Find the first valid pair (in a multi-sensor setup, typically index 0)
+        for (uint8_t i = 0; i < Constants::MAX_SENSOR_PAIRS; i++) {
+            if ((ref_sensor_mask & (1 << i)) && ref_buffer[i].complete &&
+                (flux_sensor_mask & (1 << i)) && flux_buffer[i].complete) {
+                
+                result.ref = ref_buffer[i];
+                result.flux = flux_buffer[i];
+                result.valid = true;
+                break;
+            }
+        }
+        
+        // Clear flags for next cycle
+        frame_counter++;
+        reset();
+        
+        return result;
+    }
+    
+    /**
      * @brief Retrieve complete sensor frame (call only after isFrameReady returns true)
+     * @deprecated Use getDifferentialFrame() for full DTDSS algorithm
      */
     SensorFrame getFrame() {
         if (!frame_ready) {

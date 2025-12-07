@@ -61,6 +61,15 @@ struct SensorFrame {
     }
 };
 
+// Container for synchronized Reference and Flux frames
+struct DifferentialFrame {
+    SensorFrame ref;
+    SensorFrame flux;
+    bool valid;
+    
+    DifferentialFrame() : valid(false) {}
+};
+
 // Atmospheric state - derived thermodynamic properties
 struct AtmosphericState {
     float air_density_kg_m3;        // ρ_moist

@@ -147,8 +147,9 @@ inline SolarFlux calculateSolarFlux(float latitude, float longitude,
                                     float hour, float altitude_m = 0.0f) {
     SolarFlux flux;
     
-    // Day of year (simplified)
-    int day_of_year = day;  // TODO: Proper calculation from month/day
+    // Day of year calculation (approximate - ignores leap years)
+    static const int days_before_month[12] = {0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334};
+    int day_of_year = days_before_month[month - 1] + day;
     
     flux.day_of_year = day_of_year;
     

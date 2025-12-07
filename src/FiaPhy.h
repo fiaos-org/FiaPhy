@@ -237,12 +237,13 @@ public:
      * @brief Compute solar radiation and heat flux from buffered sensor data
      * 
      * This method performs the complete DTDSS pipeline:
-     * 1. Validates frame integrity (symmetry, realistic values)
-     * 2. Applies INR filtering to temperature derivatives
-     * 3. Calculates air density and thermodynamic properties
-     * 4. Executes Reference Path (Kasten-Czeplak baseline)
-     * 5. Executes Reactive Path (differential + INR)
-     * 6. Returns fused radiation estimate
+     * 1. Retrieves synchronized Reference+Flux sensor pair
+     * 2. Validates frame integrity (symmetry, realistic values)
+     * 3. Applies INR filtering to temperature derivatives
+     * 4. Calculates air density and thermodynamic properties
+     * 5. Executes Reference Path (Kasten-Czeplak baseline)
+     * 6. Executes Reactive Path (differential + INR) - THE CORE DTDSS ALGORITHM
+     * 7. Returns fused radiation estimate
      * 
      * @return RadiationResult containing GHI, heat flux, and validation status
      */
@@ -257,11 +258,17 @@ public:
             return RadiationResult::invalid();
         }
         
-        // Retrieve validated frame
-        SensorFrame frame = hub.getFrame();
+        // Retrieve synchronized Reference+Flux pair (CRITICAL for differential method)
+        DifferentialFrame frame = hub.getDifferentialFrame();
         
-        // Validate frame integrity
-        ValidationResult validation = hub.validateFrame(frame);
+        // Validate frame
+        if (!frame.valid) {
+            Logger::error("Failed to obtain valid differential frame");
+            return RadiationResult::invalid();
+        }
+        
+        // Validate reference sensor integrity
+        ValidationResult validation = hub.validateFrame(frame.ref);
         if (!validation.valid) {
             Logger::error("Frame validation failed");
             if (validation.error_code == ErrorCode::SENSOR_ASYMMETRY) {
@@ -272,12 +279,12 @@ public:
             return RadiationResult::invalid();
         }
         
-        // Execute physics engine
+        // Execute physics engine with BOTH sensors (enables reactive path)
         RadiationResult result = engine.compute(frame, inr_ref, inr_flux);
         
         if (result.valid) {
             frame_count++;
-            Logger::debug("Frame processed successfully");
+            Logger::debug("DTDSS frame processed successfully");
         }
         
         return result;
