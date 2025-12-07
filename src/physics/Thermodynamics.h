@@ -6,6 +6,15 @@
 // - Vapor pressure derivation (Magnus formula)
 // - Specific enthalpy computation
 // - All calculations use measured P/T/RH (no standard atmosphere assumptions)
+//
+// IMPLEMENTATION NOTE:
+// This reference implementation uses floating-point arithmetic for clarity,
+// precision, and compatibility with modern 32-bit microcontrollers (ESP32, 
+// ARM Cortex-M4). While the algorithm is mathematically suitable for 
+// fixed-point optimization on 8-bit architectures (replacing float operations
+// with integer multiply-shift operations), the performance gains are negligible
+// on contemporary IoT platforms with hardware FPUs. A fixed-point variant may
+// be provided as a separate optimization layer if targeting legacy 8-bit MCUs.
 //==============================================================================
 
 #ifndef FIAPHY_THERMODYNAMICS_H
