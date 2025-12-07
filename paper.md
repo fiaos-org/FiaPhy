@@ -14,9 +14,9 @@ authors:
     affiliation: 1
     corresponding: true
 affiliations:
- - name: FiaOS Research, Sri Lanka
+ - name: FiaOS.org
    index: 1
-date: 07 December 2025
+date: 25 November 2025
 bibliography: paper.bib
 ---
 
