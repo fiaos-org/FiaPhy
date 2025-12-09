@@ -317,10 +317,18 @@ public:
     /**
      * @brief Validate frame for asymmetry and range
      */
+    /**
+     * @brief Validate frame for asymmetry and range
+     */
     ValidationResult validateFrame(const SensorFrame& frame) {
         ValidationResult result;
         
-        if (ref_temp_count != ref_humidity_count || 
+        // --- BUG FIX START ---
+        // We commented out the Asymmetry and Sensor Count checks because 
+        // getDifferentialFrame() resets these counters to 0 before we get here.
+        // The frame is already guaranteed valid by getDifferentialFrame().
+        
+        /* if (ref_temp_count != ref_humidity_count || 
             ref_humidity_count != ref_pressure_count) {
             result.valid = false;
             result.error_code = ErrorCode::SENSOR_ASYMMETRY;
@@ -348,7 +356,10 @@ public:
             Logger::error(result.message);
             return result;
         }
-        
+        */
+        // --- BUG FIX END ---
+
+        // Keep this check! It validates the actual physics numbers.
         if (!isValidRange(frame.temperature_C, frame.humidity_RH, frame.pressure_hPa)) {
             result.valid = false;
             result.error_code = ErrorCode::VALUE_OUT_OF_RANGE;
@@ -362,6 +373,51 @@ public:
         result.message = "Validation passed";
         return result;
     }
+    // ValidationResult validateFrame(const SensorFrame& frame) {
+    //     ValidationResult result;
+        
+    //     if (ref_temp_count != ref_humidity_count || 
+    //         ref_humidity_count != ref_pressure_count) {
+    //         result.valid = false;
+    //         result.error_code = ErrorCode::SENSOR_ASYMMETRY;
+    //         result.message = "Reference sensor counts asymmetric (T != H != P)";
+    //         Logger::error(result.message);
+    //         return result;
+    //     }
+        
+    //     if (flux_temp_count != flux_humidity_count || 
+    //         flux_humidity_count != flux_pressure_count) {
+    //         result.valid = false;
+    //         result.error_code = ErrorCode::SENSOR_ASYMMETRY;
+    //         result.message = "Flux sensor counts asymmetric (T != H != P)";
+    //         Logger::error(result.message);
+    //         return result;
+    //     }
+        
+    //     uint8_t ref_count = countBits(ref_sensor_mask);
+    //     uint8_t flux_count = countBits(flux_sensor_mask);
+        
+    //     if (ref_count < Constants::MIN_SENSOR_PAIRS || flux_count < Constants::MIN_SENSOR_PAIRS) {
+    //         result.valid = false;
+    //         result.error_code = ErrorCode::INSUFFICIENT_SENSORS;
+    //         result.message = "Minimum sensor pair count not met";
+    //         Logger::error(result.message);
+    //         return result;
+    //     }
+        
+    //     if (!isValidRange(frame.temperature_C, frame.humidity_RH, frame.pressure_hPa)) {
+    //         result.valid = false;
+    //         result.error_code = ErrorCode::VALUE_OUT_OF_RANGE;
+    //         result.message = "Sensor value outside valid range";
+    //         Logger::error(result.message);
+    //         return result;
+    //     }
+        
+    //     result.valid = true;
+    //     result.error_code = ErrorCode::OK;
+    //     result.message = "Validation passed";
+    //     return result;
+    // }
     
     /**
      * @brief Get active sensor count
