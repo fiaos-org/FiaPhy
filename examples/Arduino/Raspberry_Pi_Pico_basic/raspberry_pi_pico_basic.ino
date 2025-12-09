@@ -3,8 +3,8 @@ https://www.fiaos.org/open-source
 */
 
 /**
- * @file Pico_BME280_Complete.ino
- * @brief FiaPhy DTDSS for Raspberry Pi Pico
+ * @file Raspberry_Pi_Pico_basic.ino
+ * @brief Raspberry_Pi_Pico_basic.ino
  * @details Complete implementation with Soft-Start, Noise Filtering, and Heat Flux output.
  * * Hardware:
  * - Raspberry Pi Pico
