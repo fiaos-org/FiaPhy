@@ -1,18 +1,12 @@
-/*Copyright (c) 2025 FiaOS.org. All rights reserved.
-https://www.fiaos.org/open-source
-*/
-
-/**
-@file AdvancedMultiSensor.ino. @brief Advanced example with multiple sensor pairs and auto-calibration. @copyright Copyright (c) 2025 FiaOS.org **/
+/*Copyright(c) 2025 FIA Operating Systems, All Rights Reserved. Cloud data: https://www.fiaos.org/data*/
 
 #include <Wire.h>
 #include <Adafruit_BME280.h>
 #include <FiaPhy.h>
 
-//Config
-#define NUM_SENSOR_PAIRS 2       // 22 to 8 pairs are supported.
-#define ENABLE_SD_LOGGING false  // please set this true if a SD card present
-#define ENABLE_WEB_DASH false    // Set true for ESP32 web interface
+#define NUM_SENSOR_PAIRS 2
+#define ENABLE_SD_LOGGING false
+#define ENABLE_WEB_DASH false
 
 // Sensor array
 Adafruit_BME280 ref_sensors[NUM_SENSOR_PAIRS];
@@ -21,8 +15,6 @@ Adafruit_BME280 flux_sensors[NUM_SENSOR_PAIRS];
 // I2C addresses for BME280 (up to 8 pairs on multiplexed bus)
 const uint8_t ref_addresses[8] = {0x76, 0x77, 0x76, 0x77, 0x76, 0x77, 0x76, 0x77};
 const uint8_t flux_addresses[8] = {0x76, 0x77, 0x76, 0x77, 0x76, 0x77, 0x76, 0x77};
-
-// FiaPhy system
 FiaPhy::DTDSS dtdss;
 
 // Statistics
@@ -47,8 +39,7 @@ void setup() {
 
     Wire.begin();
     Wire.setClock(400000);
-    
-    // init all pairs
+
     Serial.println("Initializing sensors...");
     for (uint8_t i = 0; i < NUM_SENSOR_PAIRS; i++) {
         if (!initSensorPair(i)) {
@@ -64,8 +55,7 @@ void setup() {
     
     // Configure FiaPhy
     dtdss.configure(6.9271, 79.8612, 5.0);
-    
-    // Optional: Auto-calibrate thermal time constant
+
     Serial.println();
     Serial.println("Starting auto calibration...");
     Serial.println("(This may take ~60 seconds)");
@@ -81,7 +71,7 @@ void setup() {
 
 void loop() {
     static unsigned long last_sample = 0;
-    const unsigned long SAMPLE_INTERVAL = 1000;  // 1 Hz
+    const unsigned long SAMPLE_INTERVAL = 1000;
     
     if (millis() - last_sample >= SAMPLE_INTERVAL) {
         last_sample = millis();
@@ -198,12 +188,10 @@ void processFrame() {
 }
 
 void autoCalibrate() {
-    // Simplified auto-calibration routine
-    // Full implementation would measure step response in controlled conditions
     Serial.println("Monitoring temperature decay...");
     Serial.println("   (For best results, shade sensors then observe cooling)");
-     
-    delay(5000);  // adjust custom calib. time
+
+    delay(5000);
     Serial.println("Calibration complete (using defaults)");
 }
 
@@ -240,7 +228,6 @@ void printStatistics() {
 }
 
 void logToSD(const FiaPhy::RadiationResult& result) {
-    
-    //SD card logging...
+
 }
 

@@ -1,6 +1,4 @@
-/*Copyright (c) 2025 FiaOS.org. All rights reserved.
-https://www.fiaos.org/open-source
-*/
+/*Copyright(c) 2025 FIA Operating Systems, All Rights Reserved. Cloud data: https://www.fiaos.org/data*/
 
 #ifndef FIAPHY_INR_H
 #define FIAPHY_INR_H
@@ -10,8 +8,6 @@ https://www.fiaos.org/open-source
 
 namespace FiaPhy {
 
-// Inertial Noise Reduction Filter
-// Adaptive EMA with derivative-based thermal lag compensation
 class INRFilter {
 public:
     INRFilter(float alpha_min = 0.05f, float alpha_max = 0.8f, float sensitivity = 2.0f) 
@@ -30,8 +26,6 @@ public:
         initialized_ = false;
     }
     
-    // Apply adaptive EMA filter to raw input
-    // dt: time since last sample in seconds (default 1.0s)
     float update(float raw_value, float dt = 1.0f) {
         sample_dt_ = dt;
         if(!initialized_) {
@@ -64,7 +58,6 @@ public:
         return state_.filtered_value;
     }
     
-    // Compute thermal lag compensation: T_proj = T_filt + tau * dT/dt
     float computeProjection(float thermal_time_constant_s) {
         state_.projected_value = state_.filtered_value + 
                                 thermal_time_constant_s * state_.derivative;
@@ -108,8 +101,6 @@ private:
     float sample_dt_;
     bool initialized_;
     
-    // Central difference derivative: (T[n+1] - T[n-1]) / (2 * dt)
-    // Uses actual sample interval instead of hardcoded timing
     float computeDerivative() {
         uint8_t idx_current = (state_.buffer_index + INRState::BUFFER_SIZE - 1) % INRState::BUFFER_SIZE;
         uint8_t idx_prev = (idx_current + INRState::BUFFER_SIZE - 2) % INRState::BUFFER_SIZE;
@@ -122,6 +113,7 @@ private:
     }
 };
 
-} // namespace FiaPhy
 
-#endif // FIAPHY_INR_H
+}
+
+#endif

@@ -1,8 +1,4 @@
-/*Copyright (c) 2025 FiaOS.org. All rights reserved.
-https://www.fiaos.org/open-source
-*/
-
-// FiaPhy PlatformIO ESP32 Example - WiFi Data Logging
+/*Copyright(c) 2025 FIA Operating Systems, All Rights Reserved. Cloud data: https://www.fiaos.org/data*/
 
 #include <Arduino.h>
 #include <FiaPhy.h>
@@ -12,28 +8,21 @@ https://www.fiaos.org/open-source
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
 
-// WiFi credentials
 const char* WIFI_SSID = "your_wifi_ssid";
 const char* WIFI_PASSWORD = "your_wifi_password";
 
-// Cloud endpoint
 const char* CLOUD_ENDPOINT = "https://api.fiaos.org/v1/solar-data";
 
-// BME280 sensors
 Adafruit_BME280 bme_ref(Wire, 0x76);
 Adafruit_BME280 bme_flux(Wire, 0x77);
 
-// FiaPhy objects
 FiaPhy::SensorHub hub;
 FiaPhy::PhysicsEngine engine;
 
-// Timing intervals
 const uint32_t SAMPLE_INTERVAL_MS = 1000;
 const uint32_t UPLOAD_INTERVAL_MS = 60000;
 uint32_t last_sample_time = 0;
 uint32_t last_upload_time = 0;
-
-// Data buffer
 struct DataPoint {
     uint32_t timestamp;
     float ghi;
@@ -53,10 +42,8 @@ void setup() {
     
     Serial.println("\n=== FiaPhy ESP32 Solar Monitor ===\n");
     
-    // I2C init (SDA=21, SCL=22)
     Wire.begin(21, 22);
-    
-    // Sensor init
+
     if(!bme_ref.begin()) {
         Serial.println("ERROR: Reference BME280 not found");
         while(1) delay(1000);
@@ -66,8 +53,7 @@ void setup() {
         Serial.println("ERROR: Flux BME280 not found");
         while(1) delay(1000);
     }
-    
-    // Sensor config
+
     bme_ref.setSampling(Adafruit_BME280::MODE_FORCED,
                                             Adafruit_BME280::SAMPLING_X1,
                                             Adafruit_BME280::SAMPLING_X1,
@@ -79,8 +65,7 @@ void setup() {
                                              Adafruit_BME280::SAMPLING_X1,
                                              Adafruit_BME280::SAMPLING_X1,
                                              Adafruit_BME280::FILTER_OFF);
-    
-    // FiaPhy init
+
     FiaPhy::initialize();
     hub.begin(2);
     
@@ -88,8 +73,7 @@ void setup() {
     calib.thermal_time_constant_s = 28.0f;
     calib.solar_absorptivity = 0.91f;
     engine.setCalibration(calib);
-    
-    // WiFi connect
+
     Serial.print("Connecting to WiFi");
     WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
     
@@ -110,7 +94,6 @@ void setup() {
 void loop() {
     uint32_t current_time = millis();
     
-    // Sample sensors
     if(current_time - last_sample_time >= SAMPLE_INTERVAL_MS) {
         last_sample_time = current_time;
         
@@ -133,12 +116,10 @@ void loop() {
         hub.feedHumidity(humid_flux, 1);
         hub.feedPressure(press_flux, 1);
         
-        // Process frame
         if(hub.isFrameReady()) {
             const FiaPhy::SensorFrame* frames = hub.getFrames();
             FiaPhy::SolarFlux solar = engine.compute(frames, hub.getSensorCount());
-            
-            // Store in buffer
+
             if(buffer_index < BUFFER_SIZE) {
                 data_buffer[buffer_index].timestamp = current_time;
                 data_buffer[buffer_index].ghi = solar.irradiance_Wm2;
@@ -160,7 +141,6 @@ void loop() {
         }
     }
     
-    // Upload to cloud
     if(current_time - last_upload_time >= UPLOAD_INTERVAL_MS && buffer_index > 0) {
         last_upload_time = current_time;
         uploadToCloud();
@@ -175,8 +155,7 @@ void uploadToCloud() {
     }
     
     Serial.println("\nUploading data to cloud...");
-    
-    // Build JSON payload
+
     StaticJsonDocument<4096> doc;
     doc["device_id"] = WiFi.macAddress();
     doc["firmware_version"] = FiaPhy::version();
@@ -192,8 +171,7 @@ void uploadToCloud() {
         point["humidity_RH"] = data_buffer[i].humidity;
         point["pressure_hPa"] = data_buffer[i].pressure;
     }
-    
-    // HTTP POST
+
     HTTPClient http;
     http.begin(CLOUD_ENDPOINT);
     http.addHeader("Content-Type", "application/json");

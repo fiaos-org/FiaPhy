@@ -1,16 +1,13 @@
 cmake_minimum_required(VERSION 3.10)
 project(FiaPhy VERSION 1.0.0 LANGUAGES CXX)
 
-# C++ Standard
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Compiler flags
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     add_compile_options(-Wall -Wextra -O2)
 endif()
 
-# Library source files (header-only currently, but prepared for future .cpp files)
 set(FIAPHY_HEADERS
     src/FiaPhy.h
     src/core/Types.h
@@ -21,7 +18,6 @@ set(FIAPHY_HEADERS
     src/platform/Logger.h
 )
 
-# Create interface library (header-only)
 add_library(FiaPhy INTERFACE)
 
 target_include_directories(FiaPhy INTERFACE
@@ -29,7 +25,6 @@ target_include_directories(FiaPhy INTERFACE
     $<INSTALL_INTERFACE:include>
 )
 
-# Install rules
 install(DIRECTORY src/
     DESTINATION include/FiaPhy
     FILES_MATCHING PATTERN "*.h"
@@ -67,14 +62,12 @@ install(FILES
     DESTINATION lib/cmake/FiaPhy
 )
 
-# Build examples (optional)
 option(BUILD_EXAMPLES "Build example programs" OFF)
 
 if(BUILD_EXAMPLES)
     add_subdirectory(examples/RaspberryPi)
 endif()
 
-# Print summary
 message(STATUS "")
 message(STATUS "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 message(STATUS "FiaPhy Configuration Summary")

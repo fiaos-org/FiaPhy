@@ -1,9 +1,4 @@
-/*Copyright (c) 2025 FiaOS.org. All rights reserved.
-https://www.fiaos.org/open-source
-*/
-
-// FiaPhy Arduino Example - BME280 Dual Sensor
-// Reference sensor at 0x76 (ventilated), Flux sensor at 0x77 (sealed black-body)
+/*Copyright(c) 2025 FIA Operating Systems, All Rights Reserved. Cloud data: https://www.fiaos.org/data*/
 
 #include <FiaPhy.h>
 #include <Wire.h>

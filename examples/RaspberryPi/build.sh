@@ -1,7 +1,5 @@
 #!/bin/bash
 
-# FiaPhy Raspberry Pi Build Script
-
 echo "======================================================="
 echo "       FiaPhy Raspberry Pi Build System"
 echo "======================================================="

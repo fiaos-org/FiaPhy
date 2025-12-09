@@ -1,11 +1,4 @@
-/*Copyright (c) 2025 FiaOS.org. All rights reserved.
-https://www.fiaos.org/open-source
-*/
-
-//==============================================================================
-// FiaPhy Core Types - Fundamental Data Structures
-// Defines all thermodynamic state variables and sensor data formats
-//==============================================================================
+/*Copyright(c) 2025 FIA Operating Systems, All Rights Reserved. Cloud data: https://www.fiaos.org/data*/
 
 #ifndef FIAPHY_TYPES_H
 #define FIAPHY_TYPES_H
@@ -14,13 +7,12 @@ https://www.fiaos.org/open-source
 
 namespace FiaPhy {
 
-// Sensor reading structure - raw input from hardware
 struct SensorReading {
-    float temperature_C;    // Temperature in Celsius
-    float humidity_RH;      // Relative humidity (0-100%)
-    float pressure_hPa;     // Atmospheric pressure in hectopascals
-    uint8_t sensor_id;      // Sensor identifier (0-255)
-    uint32_t timestamp_ms;  // Millisecond timestamp (optional, 0 if unused)
+    float temperature_C;
+    float humidity_RH;
+    float pressure_hPa;
+    uint8_t sensor_id;
+    uint32_t timestamp_ms;
     
     bool isValid() const {
         return temperature_C > -100.0f && temperature_C < 100.0f &&
@@ -29,15 +21,14 @@ struct SensorReading {
     }
 };
 
-// Complete sensor frame - synchronized triplet of T/H/P
+
 struct SensorFrame {
     float temperature_C;
     float humidity_RH;
     float pressure_hPa;
     uint8_t sensor_id;
-    bool complete;          // True when all three values synchronized
-    
-    // Completion flags (v1.0.2+)
+    bool complete;
+
     bool has_temperature;
     bool has_humidity;
     bool has_pressure;
@@ -61,7 +52,7 @@ struct SensorFrame {
     }
 };
 
-// Container for synchronized Reference and Flux frames
+
 struct DifferentialFrame {
     SensorFrame ref;
     SensorFrame flux;
@@ -70,33 +61,31 @@ struct DifferentialFrame {
     DifferentialFrame() : valid(false) {}
 };
 
-// Atmospheric state - derived thermodynamic properties
+
 struct AtmosphericState {
-    float air_density_kg_m3;        // ρ_moist
-    float vapor_pressure_hPa;       // e (partial pressure of water vapor)
-    float saturation_pressure_hPa;  // e_s
-    float specific_enthalpy_kJ_kg;  // h (total energy content)
-    float mixing_ratio;             // x (kg_vapor / kg_dry_air)
-    float temperature_K;            // Absolute temperature
+    float air_density_kg_m3;
+    float vapor_pressure_hPa;
+    float saturation_pressure_hPa;
+    float specific_enthalpy_kJ_kg;
+    float mixing_ratio;
+    float temperature_K;
 };
 
-// Solar flux computation result
+
 struct SolarFlux {
-    // Radiation components
-    float irradiance_Wm2;          // Global Horizontal Irradiance (GHI)
-    float heat_flux_Wm2;           // Convective heat flux
-    float sol_air_excess_C;        // T_sol (excess temperature)
-    float cloud_fraction;          // Estimated cloud cover (0-1)
-    float confidence;              // Result confidence (0-1)
-    
-    // Solar geometry parameters
-    int day_of_year;               // Day number (1-365)
-    float hour_angle_deg;          // Hour angle in degrees
-    float zenith_angle_deg;        // Solar zenith angle in degrees
-    float elevation_angle_deg;     // Solar elevation angle in degrees
-    float azimuth_angle_deg;       // Solar azimuth angle in degrees
-    bool sun_is_up;                // True if sun elevation > 0
-    float clear_sky_ghi_Wm2;       // Clear-sky GHI estimate
+    float irradiance_Wm2;
+    float heat_flux_Wm2;
+    float sol_air_excess_C;
+    float cloud_fraction;
+    float confidence;
+
+    int day_of_year;
+    float hour_angle_deg;
+    float zenith_angle_deg;
+    float elevation_angle_deg;
+    float azimuth_angle_deg;
+    bool sun_is_up;
+    float clear_sky_ghi_Wm2;
     
     SolarFlux() : irradiance_Wm2(0), heat_flux_Wm2(0), 
                   sol_air_excess_C(0), cloud_fraction(0), confidence(0),
@@ -105,13 +94,13 @@ struct SolarFlux {
                   clear_sky_ghi_Wm2(0) {}
 };
 
-// INR filter state (Inertial Noise Reduction)
+
 struct INRState {
     float filtered_value;
     float previous_filtered;
     float derivative;
     float projected_value;
-    float alpha;                    // Adaptive smoothing factor
+    float alpha;
     uint8_t buffer_index;
     static constexpr uint8_t BUFFER_SIZE = 10;
     float circular_buffer[BUFFER_SIZE];
@@ -122,40 +111,39 @@ struct INRState {
     }
 };
 
-// Calibration parameters (user-configurable or auto-detected)
+
 struct CalibrationParams {
-    float thermal_time_constant_s;  // τ (sensor thermal inertia)
-    float solar_absorptivity;       // α (black body coating)
-    float convective_area_m2;       // A_s (sensor surface area)
-    float heat_capacity_J_K;        // m·Cp (thermal mass)
-    float self_heating_offset_C;    // T_rise (electrical self-heating)
-    
-    // Default values for BME280 in typical enclosure
-    CalibrationParams() : 
+    float thermal_time_constant_s;
+    float solar_absorptivity;
+    float convective_area_m2;
+    float heat_capacity_J_K;
+    float self_heating_offset_C;
+
+    CalibrationParams() :
         thermal_time_constant_s(30.0f),
         solar_absorptivity(0.90f),
-        convective_area_m2(6.25e-6f),  // 2.5mm × 2.5mm
+        convective_area_m2(6.25e-6f),
         heat_capacity_J_K(0.5f),
         self_heating_offset_C(0.8f) {}
 };
 
-// Error codes for validation failures
+
 enum class ErrorCode : uint8_t {
     OK = 0,
-    SENSOR_ASYMMETRY,           // Unequal sensor counts (e.g., 2T + 3H + 2P)
-    INCOMPLETE_TRIPLET,         // Missing T, H, or P value
-    VALUE_OUT_OF_RANGE,         // Physically impossible reading
-    UNREALISTIC_JUMP,           // Value changed too rapidly (>20°C/s)
-    INSUFFICIENT_SENSORS,       // Less than 2 sensor pairs
-    BUFFER_OVERFLOW,            // Too many sensors (>8 pairs)
-    CALIBRATION_FAILED,         // Auto-calibration could not converge
-    INVALID_STATE               // Internal consistency check failed
+    SENSOR_ASYMMETRY,
+    INCOMPLETE_TRIPLET,
+    VALUE_OUT_OF_RANGE,
+    UNREALISTIC_JUMP,
+    INSUFFICIENT_SENSORS,
+    BUFFER_OVERFLOW,
+    CALIBRATION_FAILED,
+    INVALID_STATE
 };
 
-// Validation result structure
+
 struct ValidationResult {
-    bool valid;                 // Overall validation status
-    ErrorCode error_code;       // Specific error if !valid
+    bool valid;
+    ErrorCode error_code;
     const char* message;
     uint8_t faulty_sensor_id;
     
@@ -164,25 +152,25 @@ struct ValidationResult {
     bool isOk() const { return valid && error_code == ErrorCode::OK; }
 };
 
-// Sensor type enumeration
+
 enum class SensorType : uint8_t {
-    REFERENCE = 0,  // Ventilated, shielded sensor
-    FLUX = 1        // Black-body, absorptive sensor
+    REFERENCE = 0,
+    FLUX = 1
 };
 
-// Radiation computation result
+
 struct RadiationResult {
     bool valid;
-    float ghi_Wm2;              // Global Horizontal Irradiance
-    float heat_flux_Wm2;        // Convective heat flux
-    float temp_differential_C;  // T_flux - T_ref
-    float temp_derivative_C_s;  // dT/dt
-    float sol_air_excess_C;     // Solar air temperature excess
-    float baseline_ghi_Wm2;     // Kasten-Czeplak baseline
-    float cloud_proxy;          // Cloud fraction estimate
-    float air_density_kg_m3;    // Calculated air density
-    float vapor_pressure_hPa;   // Vapor pressure
-    float confidence;           // Result confidence (0-1)
+    float ghi_Wm2;
+    float heat_flux_Wm2;
+    float temp_differential_C;
+    float temp_derivative_C_s;
+    float sol_air_excess_C;
+    float baseline_ghi_Wm2;
+    float cloud_proxy;
+    float air_density_kg_m3;
+    float vapor_pressure_hPa;
+    float confidence;
     uint32_t timestamp_ms;
     
     RadiationResult() : valid(false), ghi_Wm2(0), heat_flux_Wm2(0),
@@ -197,7 +185,7 @@ struct RadiationResult {
     }
 };
 
-// System status structure
+
 struct SystemStatus {
     bool configured;
     uint32_t frames_processed;
@@ -208,7 +196,7 @@ struct SystemStatus {
                      sensor_ref_count(0), sensor_flux_count(0) {}
 };
 
-// Configuration structure
+
 struct Configuration {
     float latitude;
     float longitude;
@@ -217,6 +205,7 @@ struct Configuration {
     Configuration() : latitude(0), longitude(0), altitude_m(0) {}
 };
 
-} // namespace FiaPhy
 
-#endif // FIAPHY_TYPES_H
+}
+
+#endif

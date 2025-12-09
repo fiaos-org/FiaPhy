@@ -1,12 +1,4 @@
-/*Copyright (c) 2025 FiaOS.org. All rights reserved.
-https://www.fiaos.org/open-source
-*/
-
-//==============================================================================
-// FiaPhy Raspberry Pi Example
-// Build: g++ -o solar_monitor raspberry_pi_example.cpp -lwiringPi -std=c++11
-// Run: sudo ./solar_monitor
-//==============================================================================
+/*Copyright(c) 2025 FIA Operating Systems, All Rights Reserved. Cloud data: https://www.fiaos.org/data*/
 
 #include "../../src/FiaPhy.h"
 #include <iostream>
@@ -16,7 +8,6 @@ https://www.fiaos.org/open-source
 #include <fstream>
 #include <ctime>
 
-// BME280 sensor simulator
 class BME280Simulator {
 public:
     BME280Simulator(uint8_t address) : address_(address), temp_(25.0f), 
