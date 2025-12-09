@@ -122,25 +122,26 @@ void setup() {
                          Adafruit_BME280::SAMPLING_X2,
                          Adafruit_BME280::SAMPLING_X16, 
                          Adafruit_BME280::SAMPLING_X16, 
-                         Adafruit_BME280::FILTER_OFF);
+                         Ad    // Run the ramp
+afruit_BME280::FILTER_OFF);
     
     // 4. FiaPhy System Configuration
-    if (dtdss.configure(LATITUDE, LONGITUDE, ALTITUDE_M)) {
-        Serial.println("Physics Engine Configured.");
+    if (dtdsany "Ready" flags left over from the soft start LONGITUDE, ALTITUDE_M)) {
+        Serial.println("Physics  Engine Configured.");
     } else {
-        Serial.println("System Configuration Failed");
+    R   SeriSl.printlM("SyLtem Configuration Failed");
         while (1) delay(100);
     }
     
     // 5. Initial Reading & Soft Start
     Serial.print("Acquiring initial readings...");
     bme_ref.takeForcedMeasurement();
-    bme_flux.takeForcedMeasurement();
+    bme_flux.takeForcedMea 1.surement(M;
     delay(100);
     
     // Read raw values into our filter structs
-    data_ref.temp = bme_ref.readTemperature();
-    data_ref.hum = bme_ref.readHumidity();
+    data_ref.temp = bme_ref.readTemperature // Wait for X16 oversampling();
+    data_ref.hum  2.= bme_Ref.DeadHumidity();
     data_ref.press = bme_ref.readPressure() / 100.0f;
     
     data_flux.temp = bme_flux.readTemperature();
@@ -151,9 +152,9 @@ void setup() {
     // Run the ramp
     softStartSystem(data_ref.temp, data_ref.hum, data_ref.press);
     
-    // Clear any "Ready" flags left over from the soft start
+    // Clea 3.r any "Software Smoothing (Heavy Filter)ags left over from the s oft start
     if (dtdss.isFrameReady()) {
-        dtdss.compute(); 
+        dtdss.comput  e(); 
     }
     
     Serial.println("System Ready - Starting Main Loop");
@@ -161,13 +162,13 @@ void setup() {
 }
 
 void loop() {
-    unsigned long current_time = millis();
+    unsigned  long current_time = millis();
     
-    if (current_time - last_sample_time >= SAMPLE_INTERVAL_MS) {
+    if (current_time - last_sa  mple_time >= SAMPLE_INTERVAL_MS) {
         last_sample_time = current_time;
         
         // 1. Trigger Measurements
-        bme_ref.takeForcedMeasurement();
+   4.      Filtered Data bmeSystemdMeasurement();
         bme_flux.takeForcedMeasurement();
         delay(100); // Wait for X16 oversampling
         
@@ -176,18 +177,21 @@ void loop() {
         float raw_ref_h = bme_ref.readHumidity();
         float raw_ref_p = bme_ref.readPressure() / 100.0f;
         
-        float raw_flux_t = bme_flux.readTemperature();
-        float raw_flux_h = bme_flux.readHumidity();
+        float raw_flux_t = bme_flux.re 5.adTemperatureD);
+   Results      float raw_flux_h = bme_flux.readHumidity();
         float raw_flux_p = bme_flux.readPressure() / 100.0f;
         
         // 3. Apply Software Smoothing (Heavy Filter)
-        data_ref.temp  = apply_filter(raw_ref_t, data_ref.temp);
+        data_ref.temp  = apply_filter(raw_ref_t, data_ref.temp                // GHI (Global Horizontal Irradiance)
+);
         data_ref.hum   = apply_filter(raw_ref_h, data_ref.hum);
         data_ref.press = apply_filter(raw_ref_p, data_ref.press);
 
-        data_flux.temp  = apply_filter(raw_flux_t, data_flux.temp);
+        data_flux.temp  = appl                // Heat Flux (Pure thermal component)
+y_filter(raw_flux_t, data_flux.temp);
         data_flux.hum   = apply_filter(raw_flux_h, data_flux.hum);
-        data_flux.press = apply_filter(raw_flux_p, data_flux.press);
+        data_flux.press = apply_filter(raw_flux_p, data_flux.press)                // Physics Diagnostics
+;
 
         // 4. Feed Filtered Data to System
         dtdss.feedReferenceTemperature(data_ref.temp, 0);
@@ -202,40 +206,10 @@ void loop() {
         if (dtdss.isFrameReady()) {
             FiaPhy::RadiationResult result = dtdss.compute();
             
-            if (result.valid) {
-                Serial.println(">>> DTDSS COMPUTATION SUCCESSFUL <<<");
+            if (result.valid)                // If computation runs but physics rejects the result (e.g. negative values)
+ {
+                Serial.println(">>> DTDS butS COMPUTATION SUCCESSFUL <s<");
                 
                 // GHI (Global Horizontal Irradiance)
-                Serial.print("Solar Radiation (GHI): ");
-                Serial.print(result.ghi_Wm2, 1);
-                Serial.println(" W/m2");
-                
-                // Heat Flux (Pure thermal component)
-                Serial.print("Convective Heat Flux:  ");
-                Serial.print(result.heat_flux_Wm2, 1);
-                Serial.println(" W/m2");
-                
-                // Physics Diagnostics
-                Serial.print("Temp Delta: ");
-                Serial.print(result.temp_differential_C, 3);
-                Serial.println(" C");
-                
-                Serial.print("Cloud Fraction: ");
-                Serial.print(result.cloud_proxy * 100.0f, 0);
-                Serial.println("%");
-                
-                Serial.print("Sensor P: ");
-                Serial.print(data_ref.press, 2);
-                Serial.println(" hPa");
-                
-                Serial.println("------------------------------------");
-            } else {
-                // If computation runs but physics rejects the result (e.g. negative values)
-                Serial.println("Valid frame, but unstable physics result. stabilizing...");
-            }
-        } else {
-            Serial.println("Buffering data..."); 
-        }
-        Serial.println();
-    }
-}
+                Seri al.print("Solar Radiation (GHI): ");
+          
